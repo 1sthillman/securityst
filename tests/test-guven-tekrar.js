@@ -35,6 +35,14 @@ const os = require('os');
 const path = require('path');
 const { X509Certificate, createHash } = require('crypto');
 
+// ÖLÇÜLEN HATA: /durum ve /eslesme artık API anahtarı istiyor (401).
+// Bu test çıplak curl kullandığı için "servis ayakta" kontrolü 401
+// yanıtını "servis kapalı" sanıyordu. Anahtarı kanalın TEK kaynağından
+// (shared/anahtar.js) okuyoruz; burada sabit yazmak ikinci kopyadır ve
+// test-anahtar.js iki kopyanın ayrıldığını zaten denetliyor.
+const { ANAHTAR } = require('../shared/anahtar.js');
+const YETKI = '-H "Authorization: Bearer ' + ANAHTAR + '"';
+
 const VERI = path.join(os.tmpdir(), 'ck-iz-test');
 fs.rmSync(VERI, { recursive: true, force: true });
 fs.mkdirSync(VERI, { recursive: true });
@@ -49,10 +57,17 @@ const bekle = (ms) => new Promise((r) => setTimeout(r, ms));
 const c = execFileSync;
 
 const curl = (yol) => new Promise((co) => {
-  require('child_process').exec(`curl -s http://127.0.0.1:${PORT}${yol}`,
+  // Yetki başlığı ZORUNLU: /durum ve /eslesme anahtarsız istekte 401 döner.
+  // (Sunucu değişmedi; test eskiydi.)
+  require('child_process').exec(`curl -s ${YETKI} http://127.0.0.1:${PORT}${yol}`,
     { maxBuffer: 4e6 }, (e, so) => co(so));
 });
 const durumCek = async () => { try { return JSON.parse(await curl('/durum')); } catch { return null; } };
+
+// NOT: bu yardımcı anahtarsız çağrı YAPMAZ. Çağırdığı her uç anahtar ister.
+// Anahtarsız 401 alınırsa "servis kapalı" sanılmamalı, kimlik eksikliği
+// denmelidir — yoksa hata "kapalı servis" gibi görünür ve gerçek sebep
+// (401) gizlenir. Bu, bu dosyada yaşanan hataydır.
 
 /** Depodaki tüm CinarkoySync kök parmak izleri. */
 function depoKokleri() {
