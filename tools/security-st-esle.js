@@ -30,6 +30,10 @@ const KAYNAK = path.join(KOK, 'Security-ST', 'index.html');
 const HEDEF_DIZIN = path.join(KOK, 'companion', 'public', 'telefon');
 const HEDEF = path.join(HEDEF_DIZIN, 'index.html');
 
+// Dönüştürücünün KENDİSİ ürettiği dosyalar. Bunlar sayfa yazıldıktan SONRA
+// oluşur; önceki denetim bunları "eksik" sayıyordu (taze ortamda hata).
+const DONUSTURUCU_URETIR = new Set(['ocr-config.js', 'senkron.js']);
+
 let hata = 0;
 const uyari = (m) => console.log('  UYARI: ' + m);
 const basari = (m) => console.log('  ok: ' + m);
@@ -393,6 +397,10 @@ function donustur(icerik) {
     for (const mm of icerik.matchAll(/<script[^>]*src=["']([^"']+)["']/gi)) {
       const yol = mm[1].split('?')[0];
       if (/^https?:\/\//i.test(yol)) continue;
+      // ÖLÇÜLEN HATA: burada üretilecek dosyalar da aranıyordu. Üretim
+      // henüz yapılmadığı için taze ortamda daima eksik sayılıyorlardı;
+      // asıl denetim artık üretim sonrası diskte yapılıyor (aşağıda).
+      if (DONUSTURUCU_URETIR.has(path.basename(yol))) continue;
       if (!fs.existsSync(path.join(HEDEF_DIZIN, yol))) eksikHarici.push(yol);
     }
 
@@ -458,6 +466,36 @@ if (!fs.existsSync(SENKRON_KAYNAK)) {
   basari('senkron.js üretildi (otomatik eşleşme: ' +
     Math.round(fs.statSync(SENKRON_KAYNAK).size / 1024) + ' KB)');
 }
+
+// --- KESİN DENETİM (üretim sonrası, diskteki gerçek dosya) ---------------
+// Önceki denetim bellekteki metne bakıyordu ve üretim bitmeden çalışıyordu;
+// bu yüzden diskte BAŞKA bir çalışmadan kalmış dosyalara bağlıydı.
+// Bu denetim hiçbir eski dosyaya bakmaz: yalnızca az önce yazılan sayfayı
+// okur ve her harici betiği diskte arar.
+(function kesinDenetim() {
+  if (!fs.existsSync(HEDEF)) {
+    console.error('  HATA: ' + HEDEF + ' yazılmadı — sayfa üretilemedi');
+    hata++;
+    return;
+  }
+  const gercek = fs.readFileSync(HEDEF, 'utf8');
+  const eksik = [];
+  const hariciSayisi = new Set();
+  for (const mm of gercek.matchAll(/<script[^>]*src=["']([^"']+)["']/gi)) {
+    const yol = mm[1].split('?')[0];
+    if (/^https?:\/\//i.test(yol)) continue;
+    hariciSayisi.add(yol);
+    if (!fs.existsSync(path.join(HEDEF_DIZIN, yol))) eksik.push(yol);
+  }
+  if (eksik.length) {
+    console.error('  HATA: üretilen sayfa diskte VAR OLMAYAN betiğe bağlı: '
+      + [...new Set(eksik)].join(', '));
+    hata++;
+  } else {
+    basari('kesin denetim: sayfa diskte ' + hariciSayisi.size
+      + ' harici betiğin tamamını buluyor');
+  }
+})();
 
 if (hata) {
   console.error('\n' + hata + ' sorun var — çıktı güvenilmez.');
