@@ -40,6 +40,26 @@
  * Wi-Fi'taki misafire karşı). Anahtarın kendisini internete karşı gizli
  * tutmak tarayıcıda mümkün değildir.
  */
+/**
+ * Yayın yapılandırması.
+ *
+ * `yapilandirma.js` dosyası bu nesneyi doldurur. Dosya yoksa boş kalır ve
+ * uygulama kendi kökeninde çalışmaya devam eder (LAN kurulumu).
+ *
+ * Alanlar:
+ *   SUNUCU_ADRESI : Müşterinin bilgisayarındaki companion adresi.
+ *                  Boşsa `window.location.origin` kullanılır.
+ *   API_ANAHTARI   : Boşsa aşağıdaki gömülü anahtar kullanılır.
+ */
+var CK_YAPILANDIRMA = (typeof window !== "undefined" && window.CK_YAPILANDIRMA) || {};
+
+// Sunucu adresi: yapılandırma > aynı köken (LAN kurulumu).
+function sunucuKoku() {
+  var ayar = String(CK_YAPILANDIRMA.SUNUCU_ADRESI || "").trim().replace(/\/+$/, "");
+  if (ayar) return ayar;
+  return window.location.origin;
+}
+
 var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
 
 (function () {
@@ -309,7 +329,8 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
   function istekBasliklari(ekstra) {
     var b = Object.assign({}, ekstra || {});
     try { b['X-Sync-Cihaz'] = cihazKimligiAl(); } catch (e) { /* kimlik yok */ }
-    try { b['Authorization'] = 'Bearer ' + API_ANAHTARI; } catch (e) {}
+    // Anahtar da yapılandırmadan gelebilir: tek yerden değiştirmek için.
+    try { b['Authorization'] = 'Bearer ' + (CK_YAPILANDIRMA.API_ANAHTARI || API_ANAHTARI); } catch (e) {}
     try { if (S.token) b['X-Sync-Token'] = S.token; } catch (e) {}
     return b;
   }
@@ -772,7 +793,9 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
    */
   function otomatikEslesme() {
     if (window.location.protocol === 'file:') return Promise.resolve(null);
-    var kok = window.location.origin;
+    // ÖLÇÜLEN HATA: burada hep location.origin kullanılıyordu; GitHub
+    // Pages'te uygulama yanlış adrese bağlanıyordu. Yapılandırma varsa o.
+    var kok = sunucuKoku();
     // Yalnızca companion servisini konuştuğumuzdan emin ol
     return fetch(kok + '/eslesme', { cache: 'no-store', headers: istekBasliklari() })
       .then(function (r) { return r.ok ? r.json() : null; })

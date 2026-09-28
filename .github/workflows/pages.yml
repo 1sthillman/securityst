@@ -1,0 +1,96 @@
+# ============================================================================
+#  GitHub Pages — telefon uygulamasini yayinlar
+# ============================================================================
+#  Yalnizca `site/` klasoru yayinlanir. Bu klasor YALNIZCA telefon
+#  uygulamasini icerir; panel dosyalari (kayitlar.html, ayar.html,
+#  eslesme.html) BILerek disarida birakilir.
+#
+#  Neden onemli? Panel TUM kayitlari gosterir ve sunucu onu "yalnizca bu
+#  bilgisayardan acilir" diye kisitliyor. GitHub Pages herkese aciktir;
+#  panel oraya girse musteri verisi herkese acilir olurdu.
+#
+#  Guvenlik denetimi: yayin ONCESI, site/ icinde panel dosyasi veya
+#  beklenmeyen dosya varsa islem BASARISIZ olur ( sessiz sizinti olmaz ).
+# ============================================================================
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'site/**'
+      - 'tools/security-st-esle.js'
+      - 'phone/guvenlik-sync.js'
+      - 'Security-ST/index.html'
+      - 'shared/anahtar.js'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Ayni is akisinin birbirini ezmesini engelle: eskisinin bitmesini bekle.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  yayinla:
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Uygulamayi yeniden uret (kaynak degisse derlenmis cikti bayatlamasin)
+        run: node tools/security-st-esle.js
+
+      - name: site/ klasorunu yeniden kur (yalnizca telefon uygulamasi)
+        run: |
+          set -e
+          rm -rf site
+          mkdir -p site
+          cp -R companion/public/telefon/. site/
+          echo "site/ yeniden kuruldu"
+
+      - name: YAYIN KORUMASI (panel sizmasin)
+        run: |
+          set -e
+          fail() { echo "::error::$1"; exit 1; }
+          # Panel dosyalari YASAK
+          for f in kayitlar.html ayar.html eslesme.html; do
+            if [ -f "site/$f" ]; then fail "PANEL dosyasi site/ icinde: $f"; fi
+          done
+          # site/index.html telefon kaynagindan OLMALI, panelden degil
+          if [ -f companion/public/index.html ] && [ -f companion/public/telefon/index.html ]; then
+            a=$(sha256sum site/index.html | cut -d' ' -f1)
+            b=$(sha256sum companion/public/telefon/index.html | cut -d' ' -f1)
+            c=$(sha256sum companion/public/index.html | cut -d' ' -f1)
+            [ "$a" = "$b" ] || fail "site/index.html telefon kaynagindan degil"
+            [ "$a" = "$c" ] && fail "site/index.html PANEL dosyasi - veri sizintisi!"
+          fi
+          # Uygulamanin ihtiyac duydugu dosyalar
+          for f in index.html senkron.js plaka-yerel.js canli-okuma.js \
+                   yerel-kamera.js yapilandirma.js guvenli-kaynak.js \
+                   ocr-config.js vendor/qrcode.min.js vendor/xlsx.full.min.js; do
+            [ -f "site/$f" ] || fail "eksik dosya: $f"
+          done
+          # Panel varliklari yanlislikla kopyalanmis olabilir
+          [ -d site/assets ] && fail "site/assets panel varliklari - sizinti riski"
+          echo "Guvenlik denetimi gecti: site/ yalnizca telefon uygulamasi"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

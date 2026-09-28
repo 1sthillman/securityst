@@ -33,3 +33,8 @@ companion/public/telefon/vendor/
 //     eklenmesi gerekiyor; gitlink (mode 160000) olursa dosyalar depoya
 //     GİRMEZ ve derleme kırılır. ---
 Security-ST/.git/
+
+# GitHub Pages yayin klasoru: is akisi companion/public/telefon/ dan yeniden uretir.
+# Tek dogruluk kaynagi companion/public/telefon/ olsun; iki kopya tutulursa
+# biri bayatlar ve yanlis yayinlanir.
+site/

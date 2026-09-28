@@ -226,6 +226,9 @@ function donustur(icerik) {
     '  <!-- Yerel kamera (SERTİFİKA GEREKMEZ). getUserMedia yalnizca https\n' +
     '       ister; bu yol telefonun kendi kamerasini acar ve duz http\n' +
     '       adresinde de calisir. Musterilerimiz hicbir ayar yapmaz. -->\n' +
+    '  <!-- Yayın yapılandırması: sunucu adresi + anahtar. LAN kurulumunda' +
+    '       boştur ve uygulama aynı kökende çalışır. -->\n' +
+    '  <script src="yapilandirma.js"></script>\n' +
     '  <script src="yerel-kamera.js"></script>\n' +
     '  <!-- Güvenli kaynak uyarısı (KAMERA ÖN KOSULU). Tarayıcı kamerayı\n' +
     '       yalnızca https altında açar; http adresinde kullanıcı belirsiz bir\n' +
