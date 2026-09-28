@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Çınarköy Nöbet — Plaka Tanıma</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#121417; --surface:#1b1e23; --surface-2:#22262c; --surface-3:#2a2f36;
+    --border:#333941; --text:#eef0f2; --text-dim:#98a1ab; --text-faint:#5d646d;
+    --amber:#f2a93b; --amber-dim:#7a5a1e; --amber-glow:rgba(242,169,59,.18);
+    --green:#4fae7d; --green-dim:#1f4b36;
+    --red:#e2574c; --red-dim:#4a231f;
+    --mono:'JetBrains Mono', 'Courier New', monospace;
+    --sans:'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    -webkit-tap-highlight-color:transparent; overscroll-behavior:none;
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  #app{ max-width:520px; margin:0 auto; min-height:100vh; display:flex; flex-direction:column; }
+
+  header.topbar{
+    padding:16px 18px 12px; display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border);
+  }
+  header.topbar h1{ font-size:15px; font-weight:700; margin:0; letter-spacing:.2px; }
+  header.topbar h1 span{ color:var(--amber); }
+  header.topbar .clock{ font-family:var(--mono); font-size:13px; color:var(--text-dim); }
+
+  main{ flex:1; overflow-y:auto; padding:16px 16px 90px; }
+  .panel{ display:none; }
+  .panel.active{ display:block; }
+
+  /* ---------- Tarama sekmesi ---------- */
+  .mode-switch{
+    display:flex; gap:2px; margin-bottom:14px; background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:3px;
+  }
+  .mode-switch button{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:7px;
+    padding:9px 8px; border-radius:8px; border:none; background:transparent; color:var(--text-dim);
+    font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer;
+  }
+  .mode-switch button svg{ width:15px; height:15px; flex:none; }
+  .mode-switch button.active{ background:var(--surface-3); color:var(--text); }
+
+  .viewfinder-wrap{
+    position:relative; width:100%; aspect-ratio:4/5; background:#000; border-radius:12px;
+    overflow:hidden; border:1px solid var(--border);
+  }
+  .viewfinder-wrap video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .guide{
+    position:absolute; border:1.5px solid rgba(242,169,59,.85); border-radius:5px;
+    pointer-events:none;
+  }
+  .status-line{
+    display:flex; align-items:center; justify-content:center; gap:7px; font-size:12px;
+    color:var(--text-dim); margin-top:10px;
+  }
+  .dot{ width:6px; height:6px; border-radius:50%; background:var(--text-faint); flex:none; }
+  .dot.ready{ background:var(--green); }
+  .dot.busy{ background:var(--amber); animation:pulse 1s infinite; }
+  @keyframes pulse{ 50%{opacity:.35;} }
+  .guide-caption{ text-align:center; font-size:12px; color:var(--text-faint); margin-top:8px; }
+
+  .capture-row{ display:flex; align-items:center; justify-content:center; margin-top:16px; }
+  .capture-btn{
+    width:64px; height:64px; border-radius:50%; background:var(--amber); border:none;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+  }
+  .capture-btn svg{ width:26px; height:26px; color:#241c0a; }
+  .capture-btn:disabled{ opacity:.35; }
+  .manual-row{ text-align:center; margin-top:12px; }
+  .link-btn{ background:none; border:none; color:var(--text-dim); font-family:var(--sans); font-size:13px; cursor:pointer; padding:6px; }
+
+  .cam-msg{ margin-top:14px; padding:12px 14px; border-radius:var(--radius); font-size:13px; line-height:1.5; display:none; }
+  .cam-msg.show{ display:block; }
+  .cam-msg.warn{ background:var(--red-dim); color:#ffd7d3; border:1px solid #7a352c; }
+
+  /* öneri kartı */
+  .suggest-card{
+    margin-top:16px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px; display:none;
+  }
+  .suggest-card.show{ display:block; }
+  .confidence-badge{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; padding:4px 10px;
+    border-radius:20px; margin-bottom:12px;
+  }
+  .confidence-badge.high{ background:var(--green-dim); color:#a8e6c6; }
+  .confidence-badge.low{ background:var(--amber-dim); color:#ffdca6; }
+  .confidence-badge.none{ background:var(--red-dim); color:#ffc9c3; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11px; color:var(--text-dim); margin-bottom:5px; }
+  .field input{
+    width:100%; padding:12px 12px; background:var(--surface-2); border:1px solid var(--border);
+    border-radius:8px; color:var(--text); font-family:var(--mono); font-size:18px; font-weight:700; letter-spacing:1px;
+  }
+  .field input#kuryeAdiInput{ font-family:var(--sans); font-size:15px; font-weight:500; letter-spacing:normal; }
+  .field .il-note{ font-size:11px; color:var(--text-faint); margin-top:5px; font-family:var(--sans); }
+  .format-warn{ font-size:12px; color:#ffcf9e; margin-top:6px; }
+  .btn-row{ display:flex; gap:10px; margin-top:14px; }
+  .btn{
+    flex:1; padding:12px; border-radius:8px; border:1px solid var(--border); font-weight:700; font-size:14px;
+    cursor:pointer; font-family:var(--sans);
+  }
+  .btn.primary{ background:var(--amber); border-color:var(--amber); color:#241c0a; }
+  .btn.ghost{ background:transparent; color:var(--text-dim); }
+  .frame-detail{ margin-top:10px; font-size:11px; color:var(--text-faint); font-family:var(--mono); text-align:center; line-height:1.6; }
+
+  /* ---------- Kayıtlar ---------- */
+  .stats-row{ display:flex; gap:10px; margin-bottom:14px; }
+  .stat{ flex:1; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px; text-align:center; }
+  .stat b{ display:block; font-size:20px; font-family:var(--mono); }
+  .stat span{ font-size:11px; color:var(--text-dim); }
+  .log-item{ background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:12px 14px; margin-bottom:10px; }
+  .log-item .row1{ display:flex; justify-content:space-between; align-items:center; }
+  .log-item .plate{ font-family:var(--mono); font-weight:700; font-size:16px; letter-spacing:1px; }
+  .log-item .courier{ font-size:13px; color:var(--text-dim); margin-top:2px; }
+  .log-item .meta{ font-size:11px; color:var(--text-faint); margin-top:6px; display:flex; justify-content:space-between; }
+  .tag{ font-size:10px; padding:2px 7px; border-radius:10px; font-weight:700; }
+  .tag.yuksek{ background:var(--green-dim); color:#a8e6c6; }
+  .tag.dusuk{ background:var(--amber-dim); color:#ffdca6; }
+  .tag.elle{ background:var(--surface-3); color:var(--text-dim); }
+  .del-btn{ background:none; border:none; color:var(--red); font-size:12px; cursor:pointer; }
+  .empty{ text-align:center; color:var(--text-faint); font-size:13px; padding:40px 10px; }
+  .toolbar{ display:flex; gap:10px; margin-bottom:14px; }
+
+  /* ---------- Kuryeler ---------- */
+  .courier-row{ display:flex; gap:8px; align-items:center; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:10px 12px; margin-bottom:8px; }
+  .courier-row .plate{ font-family:var(--mono); font-weight:700; width:96px; flex:none; font-size:13px; }
+  .courier-row .name{ flex:1; font-size:13px; }
+  .add-courier{ display:flex; gap:8px; margin-bottom:16px; }
+  .add-courier input{ flex:1; padding:10px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; color:var(--text); font-size:13px; }
+  .add-courier input.plate-in{ font-family:var(--mono); flex:0 0 110px; text-transform:uppercase; }
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; padding-bottom:env(safe-area-inset-bottom,0px);
+    background:var(--surface); border-top:1px solid var(--border);
+  }
+  .tabbar-inner{ max-width:520px; margin:0 auto; display:flex; }
+  .tabbar-inner button{
+    flex:1; background:none; border:none; color:var(--text-faint); padding:10px 4px 8px; font-family:var(--sans);
+    font-size:11px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer;
+  }
+  .tabbar-inner button.active{ color:var(--amber); }
+  .tabbar-inner svg{ width:20px; height:20px; }
+
+  ::-webkit-scrollbar{ width:0; height:0; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <h1>Çınarköy <span>Nöbet</span></h1>
+    <div class="clock" id="clockEl">--:--</div>
+  </header>
+
+  <main>
+    <!-- TARAMA -->
+    <section class="panel active" id="panel-tarama">
+      <div class="mode-switch">
+        <button id="modeOto" class="active">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12l1.6-4.8A2 2 0 016.5 6h11a2 2 0 011.9 1.2L21 12"/><path d="M3 12h18v5a1 1 0 01-1 1h-1.5a1 1 0 01-1-1v-1H6.5v1a1 1 0 01-1 1H4a1 1 0 01-1-1v-5z"/><circle cx="7.5" cy="15.5" r="1.2"/><circle cx="16.5" cy="15.5" r="1.2"/></svg>
+          Otomobil
+        </button>
+        <button id="modeMoto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5.5" cy="16.5" r="2.5"/><circle cx="18.5" cy="16.5" r="2.5"/><path d="M8 16.5h5l3-6h3M11 10.5H7l-1.5 3M14 7h3l1 3.5"/></svg>
+          Motosiklet
+        </button>
+      </div>
+
+      <div class="viewfinder-wrap" id="viewfinderWrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="guide" id="guideBox"></div>
+      </div>
+      <p class="guide-caption" id="guideLabel">Plakayı çerçeveye hizalayın</p>
+      <div class="status-line"><span class="dot" id="engineDot"></span><span id="engineText">Kamera bekleniyor…</span></div>
+
+      <div class="cam-msg warn" id="camMsg"></div>
+
+      <div class="capture-row">
+        <button class="capture-btn" id="captureBtn" disabled aria-label="Fotoğraf çek">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13.5" r="3.2"/></svg>
+        </button>
+      </div>
+      <div class="manual-row"><button class="link-btn" id="manualBtn">Elle gir</button></div>
+      <div class="frame-detail" id="frameDetail"></div>
+
+      <div class="suggest-card" id="suggestCard">
+        <div id="confidenceBadge" class="confidence-badge high">Yüksek güven</div>
+        <div class="field">
+          <label for="plateInput">Plaka</label>
+          <input id="plateInput" maxlength="12" placeholder="34 ABC 123" autocomplete="off">
+          <div class="il-note" id="ilNote"></div>
+          <div class="format-warn" id="formatWarn" style="display:none;"></div>
+        </div>
+        <div class="field">
+          <label for="kuryeAdiInput">Kurye adı</label>
+          <input id="kuryeAdiInput" placeholder="Eşleşme yoksa elle yazın" autocomplete="off">
+        </div>
+        <div class="btn-row">
+          <button class="btn ghost" id="discardBtn">Vazgeç</button>
+          <button class="btn primary" id="saveBtn">Kaydet</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- KAYITLAR -->
+    <section class="panel" id="panel-kayitlar">
+      <div class="stats-row">
+        <div class="stat"><b id="statTotal">0</b><span>Toplam kayıt</span></div>
+        <div class="stat"><b id="statAccept">0</b><span>Öneri kabul</span></div>
+        <div class="stat"><b id="statCorrect">0</b><span>Düzeltilen</span></div>
+      </div>
+      <div class="toolbar">
+        <button class="btn ghost" id="exportBtn">CSV indir</button>
+        <button class="btn ghost" id="clearLogBtn">Kayıtları temizle</button>
+      </div>
+      <div id="logList"></div>
+    </section>
+
+    <!-- KURYELER -->
+    <section class="panel" id="panel-kuryeler">
+      <div class="add-courier">
+        <input class="plate-in" id="newCourierPlate" placeholder="34ABC123">
+        <input id="newCourierName" placeholder="Kurye adı">
+        <button class="btn primary" style="flex:0 0 auto; padding:10px 14px;" id="addCourierBtn">Ekle</button>
+      </div>
+      <div id="courierList"></div>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <div class="tabbar-inner">
+      <button class="tab-btn active" data-panel="tarama">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 8l1.5-3h15L21 8v11a1 1 0 01-1 1H4a1 1 0 01-1-1V8z"/><circle cx="12" cy="13" r="3.2"/></svg>
+        Tarama
+      </button>
+      <button class="tab-btn" data-panel="kayitlar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg>
+        Kayıtlar
+      </button>
+      <button class="tab-btn" data-panel="kuryeler">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3.3 3-6 7-6s7 2.7 7 6"/><circle cx="18" cy="8" r="2.4"/><path d="M15.5 14.2c2.6.4 4.5 2.6 4.5 5.8"/></svg>
+        Kuryeler
+      </button>
+    </div>
+  </nav>
+</div>
+
+<canvas id="workCanvas" style="display:none;"></canvas>
+
+<script>
+(function(){
+  'use strict';
+
+  /* =========================================================
+     0. SABİTLER, DEPOLAMA, YARDIMCI FONKSİYONLAR
+  ========================================================= */
+  var LS_COURIERS = 'cinarkoy_kuryeler_v1';
+  var LS_LOG      = 'cinarkoy_kayitlar_v1';
+  var LS_STATS    = 'cinarkoy_stats_v1';
+
+  var IL_KODLARI = {"01":"Adana","02":"Adıyaman","03":"Afyonkarahisar","04":"Ağrı","05":"Amasya","06":"Ankara","07":"Antalya","08":"Artvin","09":"Aydın","10":"Balıkesir","11":"Bilecik","12":"Bingöl","13":"Bitlis","14":"Bolu","15":"Burdur","16":"Bursa","17":"Çanakkale","18":"Çankırı","19":"Çorum","20":"Denizli","21":"Diyarbakır","22":"Edirne","23":"Elazığ","24":"Erzincan","25":"Erzurum","26":"Eskişehir","27":"Gaziantep","28":"Giresun","29":"Gümüşhane","30":"Hakkari","31":"Hatay","32":"Isparta","33":"Mersin","34":"İstanbul","35":"İzmir","36":"Kars","37":"Kastamonu","38":"Kayseri","39":"Kırklareli","40":"Kırşehir","41":"Kocaeli","42":"Konya","43":"Kütahya","44":"Malatya","45":"Manisa","46":"Kahramanmaraş","47":"Mardin","48":"Muğla","49":"Muş","50":"Nevşehir","51":"Niğde","52":"Ordu","53":"Rize","54":"Sakarya","55":"Samsun","56":"Siirt","57":"Sinop","58":"Sivas","59":"Tekirdağ","60":"Tokat","61":"Trabzon","62":"Tunceli","63":"Şanlıurfa","64":"Uşak","65":"Van","66":"Yozgat","67":"Zonguldak","68":"Aksaray","69":"Bayburt","70":"Karaman","71":"Kırıkkale","72":"Batman","73":"Şırnak","74":"Bartın","75":"Ardahan","76":"Iğdır","77":"Yalova","78":"Karabük","79":"Kilis","80":"Osmaniye","81":"Düzce"};
+  var PLATE_RE = /^([0-8][0-9])\s*([ABCDEFGHIJKLMNOPRSTUVYZ]{1,3})\s*([0-9]{2,4})$/;
+
+  function $(id){ return document.getElementById(id); }
+  function loadJSON(key, fallback){
+    try { var v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+    catch(e){ return fallback; }
+  }
+  function saveJSON(key, val){
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){ /* depolama dolu/erişilemez: sessizce yut */ }
+  }
+  function normalizePlate(raw){
+    return (raw||'').toUpperCase().replace(/[İIı]/g,'I').replace(/[^A-Z0-9]/g,' ').replace(/\s+/g,' ').trim();
+  }
+  function validatePlate(norm){
+    var compact = norm.replace(/\s+/g,'');
+    var m = compact.match(/^([0-8][0-9])([ABCDEFGHIJKLMNOPRSTUVYZ]{1,3})([0-9]{2,4})$/);
+    if(!m) return {valid:false};
+    var il = m[1];
+    if(il==='00') return {valid:false};
+    return {valid:true, il:il, harf:m[2], rakam:m[3], display: il+' '+m[2]+' '+m[3]};
+  }
+
+  var couriers = loadJSON(LS_COURIERS, []);
+  var log = loadJSON(LS_LOG, []);
+  var stats = loadJSON(LS_STATS, {kabul:0, duzeltilen:0});
+
+  function findCourier(plateCompact){
+    for(var i=0;i<couriers.length;i++){
+      if(couriers[i].plate.replace(/\s+/g,'') === plateCompact) return couriers[i];
+    }
+    return null;
+  }
+
+  /* =========================================================
+     1. SEKME NAVİGASYONU
+  ========================================================= */
+  var tabButtons = document.querySelectorAll('.tab-btn');
+  tabButtons.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      tabButtons.forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('.panel').forEach(function(p){ p.classList.remove('active'); });
+      $('panel-' + btn.dataset.panel).classList.add('active');
+      if(btn.dataset.panel === 'kayitlar') renderLog();
+      if(btn.dataset.panel === 'kuryeler') renderCouriers();
+    });
+  });
+
+  /* saat */
+  function tickClock(){
+    var d = new Date();
+    $('clockEl').textContent = String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
+  tickClock(); setInterval(tickClock, 15000);
+
+  /* =========================================================
+     2. ARAÇ MODU + KILAVUZ ÇERÇEVESİ
+  ========================================================= */
+  var vehicleMode = 'oto'; // 'oto' | 'moto'
+  var GUIDE_RECT = {
+    oto:  {x:0.08, y:0.40, w:0.84, h:0.20},
+    moto: {x:0.26, y:0.30, w:0.48, h:0.40}
+  };
+  function applyGuide(){
+    var r = GUIDE_RECT[vehicleMode];
+    var wrap = $('viewfinderWrap');
+    var g = $('guideBox');
+    g.style.left   = (r.x*100)+'%';
+    g.style.top    = (r.y*100)+'%';
+    g.style.width  = (r.w*100)+'%';
+    g.style.height = (r.h*100)+'%';
+    $('guideLabel').textContent = vehicleMode==='moto' ? 'Plaka iki satırı çerçeveye al' : 'Plakayı çerçeveye hizala';
+  }
+  $('modeOto').addEventListener('click', function(){ vehicleMode='oto'; $('modeOto').classList.add('active'); $('modeMoto').classList.remove('active'); applyGuide(); });
+  $('modeMoto').addEventListener('click', function(){ vehicleMode='moto'; $('modeMoto').classList.add('active'); $('modeOto').classList.remove('active'); applyGuide(); });
+  applyGuide();
+
+  /* =========================================================
+     3. KAMERA
+  ========================================================= */
+  var video = $('video');
+  var camReady = false;
+
+  function showCamMsg(text){
+    var el = $('camMsg'); el.textContent = text; el.classList.add('show');
+  }
+  function hideCamMsg(){ $('camMsg').classList.remove('show'); }
+
+  function startCamera(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      showCamMsg('Bu tarayıcı kamera erişimini desteklemiyor. Plakayı "Elle gir" ile kaydedebilirsiniz.');
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width:{ideal:1280}, height:{ideal:960} }, audio:false })
+      .then(function(stream){
+        video.srcObject = stream;
+        camReady = true;
+        hideCamMsg();
+        $('captureBtn').disabled = false;
+        beginLazyEngineLoad();
+      })
+      .catch(function(err){
+        showCamMsg('Kameraya erişim izni verilmedi. Tarayıcı adres çubuğundaki kamera simgesinden izin verip sayfayı yenileyin, ya da "Elle gir" ile devam edin.');
+      });
+  }
+  startCamera();
+
+  /* video native çözünürlüğü ile ekrandaki (object-fit:cover) konteyner arasındaki
+     ölçek farkını hesaba katarak, kılavuz çerçevesinin GERÇEK video pikselindeki
+     karşılığını üretir. */
+  function guideRectInVideoPixels(){
+    var vw = video.videoWidth, vh = video.videoHeight;
+    var wrap = $('viewfinderWrap');
+    var cw = wrap.clientWidth, ch = wrap.clientHeight;
+    if(!vw || !vh || !cw || !ch) return null;
+    var videoAspect = vw/vh, containerAspect = cw/ch;
+    var sx,sy,sw,sh;
+    if(videoAspect > containerAspect){
+      sh = vh; sw = vh*containerAspect; sx=(vw-sw)/2; sy=0;
+    } else {
+      sw = vw; sh = vw/containerAspect; sx=0; sy=(vh-sh)/2;
+    }
+    var r = GUIDE_RECT[vehicleMode];
+    return {
+      x: Math.round(sx + r.x*sw),
+      y: Math.round(sy + r.y*sh),
+      w: Math.round(r.w*sw),
+      h: Math.round(r.h*sh)
+    };
+  }
+
+  /* =========================================================
+     4. MOTORLARIN TEMBEL YÜKLENMESİ (OpenCV.js + Tesseract.js)
+  ========================================================= */
+  var cvReady = false, cvLoading = false;
+  var tsrReady = false, tsrLoading = false;
+  var engineLoadStarted = false;
+
+  function setEngineStatus(state, text){
+    var dot = $('engineDot');
+    dot.className = 'dot' + (state ? ' '+state : '');
+    $('engineText').textContent = text;
+  }
+
+  function loadScriptWithTimeout(src, timeoutMs){
+    return new Promise(function(resolve, reject){
+      var done = false;
+      var s = document.createElement('script');
+      s.src = src; s.async = true;
+      var t = setTimeout(function(){ if(!done){ done=true; reject(new Error('timeout: '+src)); } }, timeoutMs || 9000);
+      s.onload = function(){ if(!done){ done=true; clearTimeout(t); resolve(); } };
+      s.onerror = function(){ if(!done){ done=true; clearTimeout(t); reject(new Error('yüklenemedi: '+src)); } };
+      document.head.appendChild(s);
+    });
+  }
+
+  function beginLazyEngineLoad(){
+    if(engineLoadStarted) return;
+    engineLoadStarted = true;
+    setEngineStatus('busy', 'Görüntü motoru hazırlanıyor…');
+
+    // Tesseract.js — okuma motoru, zorunlu (yüklenemezse OCR devre dışı kalır, elle giriş açık kalır)
+    tsrLoading = true;
+    loadScriptWithTimeout('https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js', 12000)
+      .then(function(){ tsrReady = true; tsrLoading = false; updateEngineStatusLine(); })
+      .catch(function(){ tsrReady = false; tsrLoading = false; updateEngineStatusLine();
+        showCamMsg('Okuma motoru yüklenemedi (bağlantı sorunu olabilir). "Elle gir" her zaman açık.'); });
+
+    // OpenCV.js — ön işleme motoru, OPSİYONEL (yüklenemezse basit gri-tonlama yöntemine sessizce düşülür)
+    cvLoading = true;
+    loadScriptWithTimeout('https://docs.opencv.org/4.9.0/opencv.js', 12000)
+      .then(function(){
+        // opencv.js kendi WASM'ını asenkron indirir; cv.onRuntimeInitialized ile hazır olduğunu bildirir
+        if(window.cv && window.cv.onRuntimeInitialized !== undefined){
+          window.cv['onRuntimeInitialized'] = function(){ cvReady = true; cvLoading = false; updateEngineStatusLine(); };
+        } else {
+          cvReady = !!window.cv; cvLoading = false; updateEngineStatusLine();
+        }
+      })
+      .catch(function(){ cvReady = false; cvLoading = false; updateEngineStatusLine(); });
+
+    updateEngineStatusLine();
+  }
+
+  function updateEngineStatusLine(){
+    if(tsrLoading || cvLoading){ setEngineStatus('busy', 'Görüntü motoru hazırlanıyor…'); return; }
+    if(tsrReady && cvReady){ setEngineStatus('ready', 'Motor hazır (gelişmiş ön işleme)'); return; }
+    if(tsrReady && !cvReady){ setEngineStatus('ready', 'Motor hazır (temel ön işleme)'); return; }
+    setEngineStatus('', 'Okuma motoru kullanılamıyor — elle giriş açık'); 
+  }
+
+  /* =========================================================
+     5. ÖN İŞLEME ZİNCİRİ (her adım hata verirse bir öncekiyle devam eder)
+  ========================================================= */
+  // OpenCV tabanlı zincir: gri tonlama -> parlama bastırma -> gürültü azaltma
+  // -> CLAHE kontrast -> adaptif eşikleme -> eğim düzeltme (kontur + döndürme)
+  function preprocessWithOpenCV(canvas){
+    var stageCanvas = canvas;
+    try{
+      var src = cv.imread(canvas);
+      var work = src;
+
+      try{ var gray = new cv.Mat(); cv.cvtColor(work, gray, cv.COLOR_RGBA2GRAY); work.delete(); work = gray; }catch(e){}
+
+      try{
+        var mask = new cv.Mat();
+        cv.threshold(work, mask, 235, 255, cv.THRESH_BINARY);
+        var kernel = cv.Mat.ones(3,3, cv.CV_8U);
+        cv.dilate(mask, mask, kernel);
+        var inpainted = new cv.Mat();
+        cv.inpaint(work, mask, inpainted, 4, cv.INPAINT_TELEA);
+        work.delete(); mask.delete(); kernel.delete();
+        work = inpainted;
+      }catch(e){ /* parlama bastırma başarısız oldu, atlanıyor */ }
+
+      try{ var blurred = new cv.Mat(); cv.medianBlur(work, blurred, 3); work.delete(); work = blurred; }catch(e){}
+
+      try{
+        var clahe = new cv.CLAHE(2.0, new cv.Size(8,8));
+        var claheOut = new cv.Mat();
+        clahe.apply(work, claheOut);
+        work.delete(); work = claheOut;
+      }catch(e){ /* CLAHE başarısız, ham gri ton ile devam */ }
+
+      // eğim düzeltme: en büyük konturu bul, minAreaRect açısına göre döndür
+      try{
+        var edges = new cv.Mat();
+        cv.threshold(work, edges, 0, 255, cv.THRESH_BINARY+cv.THRESH_OTSU);
+        var contours = new cv.MatVector();
+        var hierarchy = new cv.Mat();
+        cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+        var maxArea = 0, maxIdx = -1;
+        for(var i=0;i<contours.size();i++){
+          var a = cv.contourArea(contours.get(i));
+          if(a > maxArea){ maxArea = a; maxIdx = i; }
+        }
+        if(maxIdx >= 0 && maxArea > work.cols*work.rows*0.15){
+          var rect = cv.minAreaRect(contours.get(maxIdx));
+          var angle = rect.angle;
+          if(angle < -45) angle += 90;
+          if(Math.abs(angle) > 1 && Math.abs(angle) <= 15){
+            var center = new cv.Point(work.cols/2, work.rows/2);
+            var M = cv.getRotationMatrix2D(center, angle, 1);
+            var rotated = new cv.Mat();
+            cv.warpAffine(work, rotated, M, new cv.Size(work.cols, work.rows), cv.INTER_LINEAR, cv.BORDER_REPLICATE);
+            work.delete(); M.delete(); work = rotated;
+          }
+        }
+        edges.delete(); contours.delete(); hierarchy.delete();
+      }catch(e){ /* eğim düzeltme başarısız, düzeltilmemiş görüntüyle devam */ }
+
+      try{
+        var thresh = new cv.Mat();
+        cv.adaptiveThreshold(work, thresh, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 31, 15);
+        work.delete(); work = thresh;
+      }catch(e){ /* adaptif eşikleme başarısız, kontrast-artırılmış gri ton ile devam */ }
+
+      var out = document.createElement('canvas');
+      out.width = work.cols; out.height = work.rows;
+      cv.imshow(out, work);
+      work.delete();
+      return out;
+    }catch(e){
+      return stageCanvas; // OpenCV tamamen başarısız oldu: ham kareyle devam
+    }
+  }
+
+  // Daha hafif OpenCV varyantı: adaptif eşikleme ve eğim düzeltme olmadan, sadece
+  // gri tonlama + parlama bastırma + kontrast artırma. Bazı plakalar ikili (binary)
+  // görüntüden çok, kontrastı artırılmış gri tondan daha iyi okunur.
+  function preprocessWithOpenCVLight(canvas){
+    try{
+      var src = cv.imread(canvas);
+      var work = src;
+      try{ var gray = new cv.Mat(); cv.cvtColor(work, gray, cv.COLOR_RGBA2GRAY); work.delete(); work = gray; }catch(e){}
+      try{
+        var mask = new cv.Mat();
+        cv.threshold(work, mask, 235, 255, cv.THRESH_BINARY);
+        var inpainted = new cv.Mat();
+        cv.inpaint(work, mask, inpainted, 4, cv.INPAINT_TELEA);
+        work.delete(); mask.delete(); work = inpainted;
+      }catch(e){}
+      try{
+        var clahe = new cv.CLAHE(2.5, new cv.Size(8,8));
+        var claheOut = new cv.Mat();
+        clahe.apply(work, claheOut);
+        work.delete(); work = claheOut;
+      }catch(e){}
+      var out = document.createElement('canvas');
+      out.width = work.cols; out.height = work.rows;
+      cv.imshow(out, work);
+      work.delete();
+      return out;
+    }catch(e){ return canvas; }
+  }
+
+  function cloneCanvas(c){
+    var n = document.createElement('canvas'); n.width = c.width; n.height = c.height;
+    n.getContext('2d').drawImage(c, 0, 0);
+    return n;
+  }
+
+  // OpenCV yoksa devreye giren basit yedek: gri tonlama + sabit eşik (canvas pikselleri üzerinden)
+  function preprocessBasic(canvas){
+    try{
+      var ctx = canvas.getContext('2d');
+      var img = ctx.getImageData(0,0,canvas.width,canvas.height);
+      var d = img.data;
+      for(var i=0;i<d.length;i+=4){
+        var v = 0.299*d[i] + 0.587*d[i+1] + 0.114*d[i+2];
+        v = v > 140 ? 255 : (v < 90 ? 0 : v);
+        d[i]=d[i+1]=d[i+2]=v;
+      }
+      ctx.putImageData(img,0,0);
+      return canvas;
+    }catch(e){ return canvas; }
+  }
+
+  /* =========================================================
+     6. KIRPMA — görevli tek bir fotoğraf çeker
+  ========================================================= */
+  function cropToCanvas(rect){
+    var c = document.createElement('canvas');
+    var targetW = 480;
+    var scale = targetW / rect.w;
+    c.width = targetW; c.height = Math.round(rect.h*scale);
+    var ctx = c.getContext('2d');
+    ctx.drawImage(video, rect.x, rect.y, rect.w, rect.h, 0, 0, c.width, c.height);
+    return c;
+  }
+
+  // Yavaş cihazlarda işlem varyantı sayısını azaltarak yanıt süresini makul tutar
+  function variantBudgetForDevice(){
+    var cores = navigator.hardwareConcurrency || 4;
+    return cores <= 2 ? 2 : 3;
+  }
+
+  /* =========================================================
+     7. OCR (Tesseract.js) — tek kare oku, moto modunda 2 satırı ayrı okur
+  ========================================================= */
+  var tesseractWorkerPromise = null;
+  function getWorker(){
+    if(tesseractWorkerPromise) return tesseractWorkerPromise;
+    tesseractWorkerPromise = Tesseract.createWorker('eng', 1, { logger: function(){} }).then(function(worker){
+      return worker.setParameters({ tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPRSTUVYZ0123456789 ' }).then(function(){ return worker; });
+    });
+    return tesseractWorkerPromise;
+  }
+
+  function ocrCanvas(canvas){
+    return getWorker().then(function(worker){
+      return worker.recognize(canvas);
+    }).then(function(res){
+      return { text: normalizePlate(res.data.text), conf: res.data.confidence || 0 };
+    });
+  }
+
+  function ocrFrame(processedCanvas){
+    if(vehicleMode !== 'moto'){
+      return ocrCanvas(processedCanvas);
+    }
+    // motosiklet: kırpılan alanı yatay olarak ikiye böl, ayrı ayrı oku, birleştir
+    var w = processedCanvas.width, h = processedCanvas.height;
+    var topC = document.createElement('canvas'); topC.width=w; topC.height=Math.round(h*0.55);
+    topC.getContext('2d').drawImage(processedCanvas, 0,0,w,topC.height, 0,0,w,topC.height);
+    var botC = document.createElement('canvas'); botC.width=w; botC.height=h-topC.height;
+    botC.getContext('2d').drawImage(processedCanvas, 0,topC.height,w,botC.height, 0,0,w,botC.height);
+    return Promise.all([ocrCanvas(topC), ocrCanvas(botC)]).then(function(r){
+      return { text: (r[0].text+' '+r[1].text).replace(/\s+/g,' ').trim(), conf: (r[0].conf+r[1].conf)/2 };
+    });
+  }
+
+  /* =========================================================
+     8. TEK FOTOĞRAF + VARYANT OYLAMASI
+     Görevli tek bir "Çek" işlemi yapar. Sağlamlık, birden çok kamera karesi
+     yerine, o TEK fotoğrafın birden çok şekilde işlenmiş (varyant) hallerinin
+     birbirleriyle karşılaştırılmasından gelir.
+  ========================================================= */
+  var isCapturing = false;
+
+  function runCapture(){
+    if(isCapturing) return;
+    if(!camReady){ showCamMsg('Kamera hazır değil. Lütfen izinleri kontrol edin ya da "Elle gir" kullanın.'); return; }
+    if(!tsrReady){ showCamMsg('Okuma motoru henüz hazır değil ya da yüklenemedi. Birazdan tekrar deneyin ya da "Elle gir" kullanın.'); return; }
+    var rect = guideRectInVideoPixels();
+    if(!rect){ showCamMsg('Görüntü okunamadı, tekrar deneyin.'); return; }
+
+    isCapturing = true;
+    hideCamMsg();
+    $('captureBtn').disabled = true;
+    $('suggestCard').classList.remove('show');
+    $('frameDetail').textContent = 'Fotoğraf işleniyor…';
+
+    var raw = cropToCanvas(rect); // TEK fotoğraf — burada bir daha kamera karesi alınmaz
+    var variants = [];
+    var budget = variantBudgetForDevice();
+    try{
+      if(cvReady){
+        variants.push({ label:'gelişmiş ön işleme', canvas: preprocessWithOpenCV(cloneCanvas(raw)) });
+        if(budget >= 3) variants.push({ label:'kontrast odaklı', canvas: preprocessWithOpenCVLight(cloneCanvas(raw)) });
+      }
+      variants.push({ label:'temel ön işleme', canvas: preprocessBasic(cloneCanvas(raw)) });
+    }catch(e){
+      variants = [{ label:'temel ön işleme', canvas: preprocessBasic(cloneCanvas(raw)) }];
+    }
+
+    runOcrOnVariants(variants);
+  }
+
+  function runOcrOnVariants(variants){
+    var results = [];
+    var i = 0;
+    function next(){
+      if(i >= variants.length) return finishVoting(results);
+      return ocrFrame(variants[i].canvas).then(function(r){
+        r.label = variants[i].label; results.push(r); i++; return next();
+      }).catch(function(){
+        results.push({ text:'', conf:0, label: variants[i].label }); i++; return next();
+      });
+    }
+    return next().catch(function(){
+      showCamMsg('Fotoğraf işlenirken bir sorun oluştu. Tekrar deneyin ya da elle girin.');
+      isCapturing = false; $('captureBtn').disabled = false;
+    });
+  }
+
+  function finishVoting(results){
+    isCapturing = false;
+    $('captureBtn').disabled = false;
+
+    var counts = {};
+    results.forEach(function(r){
+      if(!r.text) return;
+      counts[r.text] = (counts[r.text]||0) + 1;
+    });
+    var bestText = '', bestCount = 0;
+    Object.keys(counts).forEach(function(t){ if(counts[t] > bestCount){ bestCount = counts[t]; bestText = t; } });
+
+    var chosen, confidenceLevel;
+    if(bestCount >= 2){
+      chosen = bestText; confidenceLevel = 'high';
+    } else {
+      var top = results.slice().sort(function(a,b){ return b.conf-a.conf; })[0] || {text:'', conf:0};
+      chosen = top.text; confidenceLevel = chosen ? 'low' : 'none';
+    }
+
+    $('frameDetail').textContent = results.length > 1
+      ? results.map(function(r){ return r.label+': "'+(r.text||'—')+'" ('+Math.round(r.conf)+'%)'; }).join('  •  ')
+      : '';
+
+    showSuggestion(chosen, confidenceLevel);
+  }
+
+  /* =========================================================
+     9. ÖNERİ KARTI
+  ========================================================= */
+  var lastSuggested = '';
+  function showSuggestion(text, level){
+    lastSuggested = normalizePlate(text);
+    $('plateInput').value = lastSuggested;
+    var badge = $('confidenceBadge');
+    if(level==='high'){ badge.className='confidence-badge high'; badge.textContent='Yüksek güven'; }
+    else if(level==='low'){ badge.className='confidence-badge low'; badge.textContent='Emin değilim, kontrol edin'; }
+    else { badge.className='confidence-badge none'; badge.textContent='Plaka okunamadı — elle girin'; }
+
+    var v = validatePlate(lastSuggested);
+    var warnEl = $('formatWarn'), ilNote = $('ilNote');
+    if(v.valid){
+      warnEl.style.display='none';
+      ilNote.textContent = 'İl: '+v.il+' '+(IL_KODLARI[v.il]||'');
+    } else {
+      warnEl.style.display='block';
+      warnEl.textContent = lastSuggested ? 'Plaka formatı tanınamadı — kontrol edip düzeltin.' : 'Alan boş — elle yazın.';
+      ilNote.textContent = '';
+    }
+
+    var courier = v.valid ? findCourier(lastSuggested.replace(/\s+/g,'')) : null;
+    $('kuryeAdiInput').value = courier ? courier.name : '';
+
+    $('suggestCard').classList.add('show');
+  }
+
+  $('manualBtn').addEventListener('click', function(){ showSuggestion('', 'none'); });
+  $('captureBtn').addEventListener('click', runCapture);
+  $('discardBtn').addEventListener('click', function(){
+    $('suggestCard').classList.remove('show');
+    $('frameDetail').textContent = '';
+  });
+
+  $('saveBtn').addEventListener('click', function(){
+    var plateNorm = normalizePlate($('plateInput').value);
+    var name = $('kuryeAdiInput').value.trim();
+    if(!plateNorm){ alert('Plaka alanı boş olamaz.'); return; }
+    if(!name){ if(!confirm('Kurye adı girilmedi. Yine de kaydedilsin mi?')) return; }
+
+    var v = validatePlate(plateNorm);
+    var wasEdited = plateNorm !== lastSuggested;
+    if(lastSuggested){ if(wasEdited) stats.duzeltilen++; else stats.kabul++; }
+    saveJSON(LS_STATS, stats);
+
+    log.unshift({
+      plate: v.valid ? v.display : plateNorm,
+      name: name || '(belirtilmedi)',
+      vehicle: vehicleMode,
+      time: new Date().toISOString(),
+      method: !lastSuggested ? 'elle' : (wasEdited ? 'duzeltildi' : 'oneri_kabul'),
+      formatValid: v.valid
+    });
+    saveJSON(LS_LOG, log);
+
+    $('suggestCard').classList.remove('show');
+    $('frameDetail').textContent = 'Kaydedildi.';
+  });
+
+  /* =========================================================
+     10. KAYITLAR SEKMESİ
+  ========================================================= */
+  function fmtTime(iso){
+    var d = new Date(iso);
+    return d.toLocaleDateString('tr-TR')+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  }
+  function renderLog(){
+    $('statTotal').textContent = log.length;
+    $('statAccept').textContent = stats.kabul;
+    $('statCorrect').textContent = stats.duzeltilen;
+
+    var el = $('logList');
+    if(log.length === 0){ el.innerHTML = '<div class="empty">Henüz kayıt yok. Tarama sekmesinden bir plaka okutup kaydedin.</div>'; return; }
+    el.innerHTML = log.map(function(item, idx){
+      var tagClass = item.method==='oneri_kabul' ? 'yuksek' : (item.method==='duzeltildi' ? 'dusuk' : 'elle');
+      var tagText = item.method==='oneri_kabul' ? 'Öneri kabul edildi' : (item.method==='duzeltildi' ? 'Düzeltildi' : 'Elle girildi');
+      return '<div class="log-item">'+
+        '<div class="row1"><span class="plate">'+item.plate+'</span>'+
+        '<button class="del-btn" data-idx="'+idx+'">Sil</button></div>'+
+        '<div class="courier">'+item.name+' · '+(item.vehicle==='moto'?'Motosiklet':'Otomobil')+'</div>'+
+        '<div class="meta"><span>'+fmtTime(item.time)+'</span><span class="tag '+tagClass+'">'+tagText+'</span></div>'+
+      '</div>';
+    }).join('');
+    el.querySelectorAll('.del-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        log.splice(parseInt(btn.dataset.idx,10), 1);
+        saveJSON(LS_LOG, log);
+        renderLog();
+      });
+    });
+  }
+
+  $('clearLogBtn').addEventListener('click', function(){
+    if(confirm('Tüm kayıtlar silinsin mi? Bu işlem geri alınamaz.')){ log = []; saveJSON(LS_LOG, log); renderLog(); }
+  });
+
+  $('exportBtn').addEventListener('click', function(){
+    var rows = [['Plaka','Kurye','Araç','Zaman','Yöntem']];
+    log.forEach(function(item){
+      rows.push([item.plate, item.name, item.vehicle==='moto'?'Motosiklet':'Otomobil', fmtTime(item.time), item.method]);
+    });
+    var csv = rows.map(function(r){ return r.map(function(c){ return '"'+String(c).replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
+    var blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'cinarkoy-nobet-kayitlar.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  });
+
+  /* =========================================================
+     11. KURYELER SEKMESİ
+  ========================================================= */
+  function renderCouriers(){
+    var el = $('courierList');
+    if(couriers.length === 0){ el.innerHTML = '<div class="empty">Kayıtlı kurye yok. Yukarıdan plaka ve isim ekleyin.</div>'; return; }
+    el.innerHTML = couriers.map(function(c, idx){
+      return '<div class="courier-row"><span class="plate">'+c.plate+'</span><span class="name">'+c.name+'</span>'+
+        '<button class="del-btn" data-idx="'+idx+'">Sil</button></div>';
+    }).join('');
+    el.querySelectorAll('.del-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        couriers.splice(parseInt(btn.dataset.idx,10), 1);
+        saveJSON(LS_COURIERS, couriers);
+        renderCouriers();
+      });
+    });
+  }
+  $('addCourierBtn').addEventListener('click', function(){
+    var plate = normalizePlate($('newCourierPlate').value).replace(/\s+/g,'');
+    var name = $('newCourierName').value.trim();
+    if(!plate || !name){ alert('Plaka ve isim alanlarının ikisi de gerekli.'); return; }
+    couriers.push({ plate: plate, name: name });
+    saveJSON(LS_COURIERS, couriers);
+    $('newCourierPlate').value=''; $('newCourierName').value='';
+    renderCouriers();
+  });
+
+  /* ilk açılış */
+  renderLog();
+  renderCouriers();
+
+})();
+</script>
+</body>
+</html>

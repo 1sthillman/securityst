@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b1220" />
+  <title>Çınarköy — Kapı Kayıt &amp; Senkron</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <link rel="manifest" href="manifest.json" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Çınarköy Kapı Kayıt</h1>
+      <div class="sub">Telefon → Bilgisayar otomatik Excel senkronu</div>
+    </div>
+    <div class="spacer"></div>
+    <div id="syncBadge" class="badge">…</div>
+  </header>
+
+  <main class="wrap">
+    <section class="panel">
+      <h2>Yeni giriş</h2>
+      <form id="visitForm" autocomplete="off">
+        <div class="grid">
+          <div><label>Blok / Site</label><input id="fSite" maxlength="200" placeholder="örn. A Blok" /></div>
+          <div><label>Daire</label><input id="fUnit" maxlength="200" inputmode="numeric" placeholder="örn. 12" /></div>
+          <div><label>Kurye / Ziyaretçi</label><input id="fCourier" maxlength="200" placeholder="Ad Soyad" /></div>
+          <div><label>Firma</label><input id="fCompany" maxlength="500" placeholder="örn. Yemeksepeti" /></div>
+          <div class="full"><label>Plaka *</label><input id="fPlate" required maxlength="32" placeholder="34 ABC 123" autocapitalize="characters" /></div>
+          <div><label>Görevli</label><input id="fGuard" maxlength="200" placeholder="Nöbetçi adı" /></div>
+          <div><label>Not</label><input id="fNote" maxlength="500" placeholder="Varsa not" /></div>
+        </div>
+        <div class="row">
+          <button id="saveBtn" type="submit">Kaydet</button>
+        </div>
+        <div class="hint">Kayıt önce telefona yazılır, sonra bilgisayara otomatik gönderilir. İnternet/Wi-Fi yoksa kuyrukta bekler — veri kaybolmaz.</div>
+      </form>
+    </section>
+
+    <section class="panel">
+      <h2>Senkron durumu</h2>
+      <div class="row" style="margin-top:0">
+        <button id="flushBtn" class="ghost small" type="button">Şimdi gönder</button>
+      </div>
+      <div id="syncDetail">…</div>
+    </section>
+
+    <section class="panel">
+      <h2>Son kayıtlar (telefondaki kopya)</h2>
+      <div id="list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Bilgisayar eşleşmesi</h2>
+      <label>Bilgisayar adresi</label>
+      <input id="baseUrl" placeholder="http://192.168.1.50:4545" inputmode="url" />
+      <div style="height:8px"></div>
+      <label>Eşleşme anahtarı (token)</label>
+      <input id="token" type="password" placeholder="companion config.json içindeki token" />
+      <div class="row">
+        <button id="testBtn" class="ghost" type="button">Bağlantıyı dene</button>
+        <button id="saveSettings" type="button">Kaydet</button>
+      </div>
+      <div class="hint">Router'da bilgisayara statik IP verin (örn. hep 192.168.1.50). Token, bilgisayarın <code>config.json</code> dosyasındaki değerle aynı olmalı.</div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>

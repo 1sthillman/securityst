@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="tr" data-tema="koyu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e0c" />
+  <title>Panel · Çınarköy Sync</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="gosterge">
+    <header class="ust">
+      <div class="ic">
+        <div class="marka">
+          <div class="marka-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 5v7l4.5 3"/></svg>
+          </div>
+          <div class="marka-yazi">
+            <b>Çınarköy Sync</b>
+            <span>Telefon → Bilgisayar Excel aktarımı</span>
+          </div>
+        </div>
+        <nav class="gezinme" aria-label="Bölümler">
+          <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
+          <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
+          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
+        </nav>
+        <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
+          <span class="ay"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg></span>
+          <span class="gunes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.6M12 19.6v2.6M3.5 3.5l1.8 1.8M18.7 18.7l1.8 1.8M1.8 12h2.6M19.6 12h2.6M3.5 20.5l1.8-1.8M18.7 5.3l1.8-1.8"/></svg></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="ana">
+      <div class="kabuk">
+        <section class="izgara" aria-label="Özet">
+          <div class="kart istatistik">
+            <span class="deger vurgu" id="sKayit">0</span>
+            <span class="alt" data-ikon="tablo">Toplam kayıt</span>
+          </div>
+          <div class="kart istatistik">
+            <span class="deger" id="sGuncelleme">0</span>
+            <span class="alt" data-ikon="yenile">Düzeltme</span>
+          </div>
+          <div class="kart istatistik">
+            <span class="deger mavi" id="sExcel">—</span>
+            <span class="alt" data-ikon="tablo">Excel dosyası</span>
+          </div>
+          <div class="kart istatistik">
+            <span class="deger" id="sLog">—</span>
+            <span class="alt" data-ikon="veri">Güvenlik günlüğü</span>
+          </div>
+          <div class="kart istatistik">
+            <span class="deger yas" id="sSure">—</span>
+            <span class="alt" data-ikon="saat">Servis süresi</span>
+          </div>
+        </section>
+
+        <section class="izgara-2">
+          <div class="kart">
+            <div class="kart-bas">
+              <h2>Son hareketler</h2>
+              <div class="canli" id="canli"><span class="nokta"></span><span>Bağlanıyor</span></div>
+            </div>
+            <div class="tablo-sarmal" style="max-height:420px;overflow-y:auto">
+              <table>
+                <thead>
+                  <tr><th>Zaman</th><th>Plaka</th><th>Kurye</th><th>Daire</th><th>Firma</th></tr>
+                </thead>
+                <tbody id="hareketler">
+                  <tr><td colspan="5"><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="sayfalama">
+              <span class="bosluk"></span>
+              <a class="dugme sade kucuk" href="/kayitlar.html">Tümünü gör<span data-ikon="ok"></span></a>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas">
+              <h2>Sistem durumu</h2>
+              <span class="rozet" id="surum">—</span>
+            </div>
+            <div class="kart-govde">
+              <ol class="adimlar">
+                <li><span><b>Servis ayakta</b> — arka planda çalışıyor, otomatik yeniden başlatma açık.</span></li>
+                <li><span><b>Veri katmanı</b> — kayıtlar önce günlük dosyasına yazılır, Excel oradan türetilir. Excel silinse bile kendini onarır.</span></li>
+                <li><span><b>Telefon bağlantısı</b> — eşleşme sayfasındaki QR kodla tek adımda eşleşir.</span></li>
+              </ol>
+              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                <a class="dugme kucuk" href="/eslesme.html"><span data-ikon="esle"></span>Eşleştir</a>
+                <button class="dugme sade kucuk" type="button" id="yenile"><span data-ikon="yenile"></span>Yenile</button>
+              </div>
+              <div class="alt-bilgi" style="margin-top:14px">
+                <span>Son yazma</span>
+                <span class="mono" id="sonYazma">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="alt-bilgi kabuk">
+        <span>Çınarköy Güvenlik · veriler bu bilgisayarda saklanır</span>
+        <span class="mono" id="surumAlt">—</span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    // İkon yer tutucularını doldur
+    document.querySelectorAll("[data-ikon]").forEach(function (el) {
+      el.innerHTML = CK.ikon(el.dataset.ikon);
+    });
+
+    var hareketler = document.getElementById("hareketler");
+    var canli = document.getElementById("canli");
+    var yenilenen = [];
+
+    function satir(kayit, yeniMi) {
+      var tr = document.createElement("tr");
+      if (yeniMi) tr.className = "yeni";
+      if (kayit.deleted) tr.className += " silindi";
+      tr.innerHTML =
+        '<td class="mono dim">' + CK.kacis(kayit.ts ? CK.saatTR(kayit.ts) : kayit.time || "") + "</td>" +
+        '<td class="plaka">' + CK.kacis(kayit.plate) + "</td>" +
+        "<td>" + CK.kacis(kayit.courier) + "</td>" +
+        '<td class="dim">' + CK.kacis((kayit.site || "") + " " + (kayit.unit || "")) + "</td>" +
+        '<td class="dim">' + CK.kacis(kayit.company || "") + "</td>";
+      return tr;
+    }
+
+    function tabloyuCiz(yeniler) {
+      hareketler.innerHTML = "";
+      if (!yeniler.length) {
+        hareketler.innerHTML =
+          '<tr><td colspan="5"><div class="bos">' + CK.ikon("tablo") +
+          "<p>Henüz kayıt yok. Telefondan ilk girişi yaptığınızda burada anında görünecek.</p></div></td></tr>";
+        return;
+      }
+      yeniler.slice(0, 40).forEach(function (k) { hareketler.appendChild(satir(k)); });
+    }
+
+    var canliBag = new CK.Canli(function () {
+      var self = this;
+      this.durumTetik = function (d) { durumCiz(d); };
+      self.izle(function (aktif, veri) {
+        canli.className = "canli " + (aktif ? "aktif" : "hata");
+        canli.lastElementChild.textContent = aktif ? "Canlı akış" : "Bağlantı bekleniyor";
+        if (veri && veri.tip) {
+          var yeni = veri.tip === "toplu" ? (veri.kayitlar || []) : [veri.kayit];
+          // Aynı kayıt hem canlı akıştan hem yedek yoklamadan gelebilir.
+          // Kimliğe göre elenir: kullanıcı aynı satırı iki kez görmemeli.
+          var mevcut = {};
+          yenilenen.forEach(function (k) { if (k && (k.uid || k.id)) mevcut[k.uid || k.id] = 1; });
+          var gercek = yeni.filter(function (k) {
+            if (!k) return false;
+            var kimlik = k.uid || k.id;
+            if (!kimlik) return true;
+            if (mevcut[kimlik]) return false;
+            mevcut[kimlik] = 1;
+            return true;
+          });
+          yenilenen = gercek.concat(yenilenen).slice(0, 40);
+          tabloyuCiz(yenilenen);
+        }
+      });
+      self.tazele();
+      CK.istek("/kayitlar?limit=25")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          // ÖLÇÜLEN HATA: burada yalnızca tabloyuCiz deniyordu, liste
+          // değişkeni boş kalıyordu. İlk canlı kayıtta tablo sadece o tek
+          // kaydı gösteriyor, önceki 25 kayıt kayboluyordu. Tek kaynak
+          // kullanılır: hem ilk yükleme hem akış aynı listeyi besler.
+          yenilenen = (d.records || []).slice();
+          tabloyuCiz(yenilenen);
+        })
+        .catch(function () { yenilenen = []; tabloyuCiz([]); });
+    });
+    canliBag.baglan();
+
+    function durumCiz(d) {
+      if (!d) return;
+      CK.sayiHedef(document.getElementById("sKayit"), d.kayitSayisi || 0);
+      CK.sayiHedef(document.getElementById("sGuncelleme"), d.guncelleme || 0);
+      var ex = document.getElementById("sExcel");
+      ex.textContent = CK.bayt(d.excelBytes != null ? d.excelBytes : (d.dosyalar && d.dosyalar.excelBytes));
+      var lg = document.getElementById("sLog");
+      lg.textContent = CK.bayt(d.logBytes != null ? d.logBytes : (d.dosyalar && d.dosyalar.logBytes));
+      document.getElementById("sonYazma").textContent = d.sonYazma ? CK.tamZaman(d.sonYazma) : "henüz yok";
+      if (d.surum) {
+        document.getElementById("surum").textContent = "sürüm " + d.surum;
+        document.getElementById("surumAlt").textContent = "sürüm " + d.surum;
+      }
+      if (d.uptimeSn != null) document.getElementById("sSure").textContent = CK.sureTR(d.uptimeSn);
+      if (d.sonHata) {
+        CK.bildir("Sunucu uyarısı: " + d.sonHata, "hatali");
+      }
+    }
+
+    document.getElementById("yenile").addEventListener("click", function () {
+      canliBag.tazele();
+      CK.istek("/kayitlar?limit=25")
+        .then(function (r) { return r.json(); })
+        .then(function (d) { yenilenen = (d.records || []).slice(); tabloyuCiz(yenilenen); CK.bildir("Liste yenilendi", "olumlu"); })
+        .catch(function () { CK.bildir("Yenilenemedi", "hatali"); });
+    });
+  })();
+  </script>
+</body>
+</html>

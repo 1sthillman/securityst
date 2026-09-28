@@ -1,0 +1,20 @@
+# OCR API Keys - GİZLİ TUTULACAK
+ocr-config.js
+
+# Build files
+_build/
+dist/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Temp
+*.tmp
+*.bak
+*~

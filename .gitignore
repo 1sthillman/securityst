@@ -1,0 +1,35 @@
+node_modules/
+companion/data/
+companion/config.json
+*.tmp
+.DS_Store
+
+# Paketleme çıktıları (üretilir, depoda tutulmaz)
+companion/node/
+companion/release/
+release/
+companion/launcher/CinarkoySync.exe
+companion/launcher/app.ico
+companion/launcher/derleme-deneme.exe
+companion/data/servis.log
+
+# Yerel plaka motoru: dil paketi ve gorseller uretilir, depoda tutulmaz.
+# (Kaynak kod companion/ocr/*.js depoda durur.)
+companion/ocr/lang/
+companion/ocr/fizibilite.js
+
+# Security-ST -> sunucu surumu donusturucusu uretilen dosyalar.
+# (Uygulamanin KENDISI companion/public/telefon/ altinda uretilir; kaynak
+#  Security-ST/index.html depoda durur.)
+companion/public/telefon/
+companion/public/telefon/vendor/
+
+// --- Derlenmiş çıktılar (kaynak DEĞİL, paketleme betiği üretir) ---
+*.exe
+*.dll
+!.gitignore
+
+// --- İç içe depo: Security-ST kendi .git'ini taşıyordu. Düz klasör olarak
+//     eklenmesi gerekiyor; gitlink (mode 160000) olursa dosyalar depoya
+//     GİRMEZ ve derleme kırılır. ---
+Security-ST/.git/

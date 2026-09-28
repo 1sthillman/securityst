@@ -1,0 +1,102 @@
+name: Deploy to GitHub Pages
+
+# Updated workflow with OCR config generation
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Create Multi-OCR Config from Secrets
+        run: |
+          cat > ocr-config.js << 'EOF'
+          // Multi-OCR API Configuration - AUTO-GENERATED FROM GITHUB SECRETS
+          // ⚠️ Bu dosya GitHub Actions tarafından otomatik oluşturulur
+          const OCR_CONFIG = {
+            // OCR.space API (Metin tabanlı OCR)
+            ocrSpace: {
+              apiKeys: [
+                '${{ secrets.OCR_KEY_1 }}',
+                '${{ secrets.OCR_KEY_2 }}',
+                '${{ secrets.OCR_KEY_3 }}'
+              ],
+              apiUrl: 'https://api.ocr.space/parse/image',
+              totalCapacity: {
+                monthly: 75000,
+                daily: 2500,
+                hourly: 104
+              }
+            },
+            
+            // API Ninjas - Image-to-Text API
+            apiNinjas: {
+              apiKeys: [
+                '${{ secrets.API_NINJAS_KEY }}',
+                '${{ secrets.API_NINJAS_KEY_2 }}'
+              ],
+              apiUrl: 'https://api.api-ninjas.com/v1/imagetotext',
+              totalCapacity: {
+                monthly: 100000,
+                daily: 3333,
+                hourly: 139
+              }
+            },
+            
+            // Plate Recognizer API (Özel plaka tanıma)
+            plateRecognizer: {
+              apiKeys: [
+                '${{ secrets.PLATE_RECOGNIZER_KEY }}',
+                '${{ secrets.PLATE_RECOGNIZER_KEY_2 }}',
+                '${{ secrets.PLATE_RECOGNIZER_KEY_3 }}'
+              ],
+              apiUrl: 'https://api.platerecognizer.com/v1/plate-reader/',
+              totalCapacity: {
+                monthly: 7500,
+                daily: 250,
+                hourly: 10
+              }
+            },
+            
+            // Öncelik sırası
+            priority: ['plateRecognizer', 'ocrSpace', 'apiNinjas'],
+            
+            // Fallback stratejisi
+            fallbackEnabled: true,
+            
+            // Timeout ayarları (milisaniye)
+            timeouts: {
+              plateRecognizer: 25000,
+              ocrSpace: 30000,
+              apiNinjas: 20000
+            }
+          };
+          if(typeof window !== 'undefined'){
+            window.OCR_CONFIG = OCR_CONFIG;
+          }
+          if(typeof module !== 'undefined' && module.exports){
+            module.exports = OCR_CONFIG;
+          }
+          EOF
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
