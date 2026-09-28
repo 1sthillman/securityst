@@ -166,7 +166,8 @@ cocuk.stderr.on('data', (d) => { cikti += d.toString(); });
   // --- 6) Plaka ucu gerçek görüntüyü okuyor mu ---
   console.log('\n--- Yerel plaka okuma (çevrimdışı) ---');
   const H = { 'X-Sync-Token': TOKEN, 'Content-Type': 'application/json' };
-  const durum = await (await fetch(`${AD}/plaka/durum`)).json();
+    // ÖLÇÜLEN HATA: bu çağrı kimlik göndermiyordu; sunucu 401 döndü ve plaka motoru durumu 401 döndü.
+const durum = await (await fetch(`${AD}/plaka/durum`, { headers: H })).json();
   ok(durum.aktif === true, 'plaka motoru etkin', JSON.stringify(durum));
   ok(/yerel/.test(durum.dil || ''), 'dil dosyası yerel (internet gerekmiyor)', durum.dil);
   // Motor bildirimi: hangi HATIN okuduğu ve ÇEVRİMDIŞI olduğu açıkça
@@ -277,7 +278,8 @@ cocuk.stderr.on('data', (d) => { cikti += d.toString(); });
   })).json();
   ok(kayit.ok === true, 'telefon kaydı yazıldı', JSON.stringify(kayit));
   await bekle(400);
-  const liste = await (await fetch(`${AD}/kayitlar?limit=5`)).json();
+    // ÖLÇÜLEN HATA: bu çağrı kimlik göndermiyordu; sunucu 401 döndü ve kayıt listesi 401 döndü.
+const liste = await (await fetch(`${AD}/kayitlar?limit=5`, { headers: H })).json();
   ok(liste.total === 1 && liste.records[0].plate === '34 TEL 1', 'kayıt listede görünüyor');
 
   const XLSX = require(path.join(COMP, 'node_modules', 'xlsx'));

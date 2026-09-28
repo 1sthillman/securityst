@@ -8,29 +8,28 @@
  *  döner ve istemci sessizce boş veri görür.
  *
  *  ============================================================================
- *  ÖLÇÜLEN HATA: bu denetim boşluğu vardı ve gerçek bir hatayı KAÇIRDI.
+ *  BU DENETİMİN GEÇMİŞTE KAÇIRDIĞI ÜÇ HATA
  *  ============================================================================
- *  tests/test-guven-tekrar.js düştü (9 pass, 3 fail): "servis ayakta" kontrolü
- *  başarısız oldu. Sebep sunucu değildi — test /durum'u ÇIPLAK curl ile
- *  çağırıyordu ve sunucu doğru şekilde 401 döndürüyordu. Test eskiydi.
+ *  1) tests/test-guven-tekrar.js düştü (9 pass, 3 fail).
+ *     Test /durum'u çıplak curl ile çağırıyordu; sunucu doğru şekilde 401
+ *     döndürdü, test eskiydi.
  *
- *  Bu denetim bunu YAKALAYAMADI, çünkü:
- *    1) Yalnızca `fetch(` ve `EventSource(` desenlerine bakıyordu.
- *       Test ise `exec('curl …')` kullanıyordu — desen tanınmıyordu.
- *    2) Yalnızca ÜRETİCİ dosyaları tarıyordu; test dosyalarını hiç
- *       tar Amıyordu.
- *  Yani koruma, koruması gereken çağrı yönteminin bir kısmına bakmıyordu.
- *  Bir denetimin görmediği yöntem, denetlenmemiş demektir.
+ *  2) Denetim onu KAÇIRDI: yalnızca `fetch(` ve `EventSource(` desenlerine
+ *     bakıyordu. Test `exec('curl …')` kullanıyordu. Golge edilen yöntem
+ *     denetlenmemis demektir.
  *
- *  DÜZELTME:
- *    - Çağrı desenleri genişletildi: fetch, EventSource, curl, http(s).get,
- *      http(s).request.
- *    - Test dosyaları da taranıyor.
- *    - 401'yi BEKLEYEN denetimler muaf tutuldu (onlar korumayı sınıyor;
- *      anahtarsız çağrı orada kasıtlıdır).
- *    - En önemlisi: denetim KENDİSİ sınanır. Aşağıda kasıtlı olarak bozuk
- *      bir örnek taranır; yakalayamazsa bu dosya BAŞARISIZ olur. Yani
- *      "denetim çalışıyor" beyanı değil, kanıtı vardır.
+ *  3) tests/e2e-live.js düştü:
+ *       E2E — /kayitlar: HATA {"ok":false,"error":"Yetkisiz (API anahtarı gerekli)"}
+ *     Ve denetim yine KAÇIRDI: tarama deseni `^test-.*\.m?js$` idi;
+ *     `e2e-live.js` / `e2e-telefon.js` bu desene uymuyordu.
+ *
+ *  DÜZELTMELER: geniş çağrı desenleri, TÜM test betiklerinin taranması,
+ *  başlık değişkeni çözümlemesi, çok satırlı argüman penceresi, 401 niyetinin
+ *  tanınması, istek yapan yardımcıların çağrı yerlerinin denetlenmesi.
+ *
+ *  EN ÖNEMLİSİ: denetim KENDİSİ sınanır. Kasıtlı bozuk örnekler taranır;
+ *  yakalayamazsa bu dosya başarısız olur. "Denetim çalışıyor" beyanı değil,
+ *  kanıtı vardır.
  * ============================================================================
  */
 
@@ -39,40 +38,39 @@ const path = require('path');
 
 const KOK = path.join(__dirname, '..');
 
-// Denetlenecek dosyalar: hem KAYNAK hem ÜRETİLMİŞ çıktı.
-// (Üretilen dosya unutulursa hata paketlenmiş üründe çıkar.)
-const DOSYALAR = [
+// --- Taranacak dosyalar ----------------------------------------------------
+// Üretici dosyalar: hem KAYNAK hem ÜRETİLMİŞ çıktı. (Üretilen dosya
+// unutulursa hata paketlenmiş üründe çıkar.)
+const URETICI = [
   'phone/guvenlik-sync.js',
   'companion/public/telefon/senkron.js',            // ÜRETİLMİŞ
   'companion/public/telefon/plaka-yerel.js',
+  'companion/public/telefon/canli-okuma.js',
   'companion/public/assets/core.js',
   'companion/public/index.html',
   'companion/public/kayitlar.html',
   'companion/public/eslesme.html',
 ];
 
-// Test dosyaları da taranır. ÖLÇÜLEN HATA: burası boştu ve anahtarsız bir
-// çağrı testlere sızdı; sunucu doğru davranıp 401 döndüğü için hata
-// "kapalı servis" gibi göründü.
+// Test betikleri: tests/ ve tests/ara/ altındaki TÜM .js/.mjs.
+// ÖLÇÜLEN HATA: önceki sürüm `^test-` deseniyle eşleştiriyordu; e2e-*.js
+// dosyaları kapsam DIŞINDA kalıp anahtarsız çağrıyı denetimden geçirdi.
 function testDosyalari() {
-  const kok = path.join(__dirname);
   const cik = [];
-  for (const d of [kok, path.join(kok, 'ara')]) {
+  for (const [d, etiket] of [[__dirname, 'tests'], [path.join(__dirname, 'ara'), 'tests/ara']]) {
     if (!fs.existsSync(d)) continue;
     for (const f of fs.readdirSync(d)) {
-      if (/^test-.*\.m?js$/.test(f)) cik.push(path.join('tests', path.basename(d) === 'ara' ? 'ara' : '', f));
+      if (!/\.m?js$/i.test(f)) continue;
+      // Bu dosya kendi kırık örneklerini içerir; tararsa kendi kanıtını
+      // kendi hatası sanar (ölçülen yanlış alarm: 3 bulgu).
+      if (/^test-istemci-kimlik/.test(f)) continue;
+      cik.push(etiket + '/' + f);
     }
   }
   return cik;
 }
 
-// --- TESPİT KURALLARI ------------------------------------------------------
-
-// Korumalı uçlar
-// ÖLÇÜLEN HATA: `/kayitlar\b` deseni `/kayitlar.html` dosyasını da
-// eşleştiriyordu (`\b`, `s` ile `.` arasındadır). O bir veri ucu DEĞİL,
-// panelin sayfasıdır. Sonraki karakterin harf/rakam/alt çizgi OLMADIĞI
-// uçlar sayılır; böylece .html/.json uzantıları eşleşmez.
+// --- Kurallar ---------------------------------------------------------------
 const KORUMASIZ_UC = [
   /\/durum(?!\.\w)/,
   /\/kayitlar(?!\.\w)/,
@@ -84,37 +82,28 @@ const KORUMASIZ_UC = [
   /\/kayit\/batch(?!\.\w)/,
 ];
 
-// Anahtarı taşıyan yardımcılar / başlıklar.
-//
-// ÖLÇÜLEN HATA (denetimin kendi kusuru): burada yalnızca Authorization
-// sayılıyordu. Oysa sunucu ÜÇ kimlik biçimini de kabul ediyor
-// (companion.js, anahtarGecerliMi):
-//     a) Authorization: Bearer <API anahtarı>
-//     b) Authorization: <API anahtarı>            (düz)
-//     c) X-Sync-Token: <kurulum anahtarı>
-// Testler (c) biçimini kullanıyor ve bu GEÇERLİDİR. X-Sync-Token sayılmayınca
-// 16 geçerli çağrı "eksik" diye raporlandı — yani denetim yanlış alarm
-// veriyordu. Böyle bir denetime güvenilmez; önce denetimi düzeltiyoruz.
+// Sunucunun KABUL ETTİĞİ üç kimlik biçimi:
+//   a) Authorization: Bearer <API anahtarı>
+//   b) Authorization: <API anahtarı>
+//   c) X-Sync-Token: <kurulum anahtarı>
+// (companion.js, anahtarGecerliMi — ölçülerek doğrulandı)
+// ÖLÇÜLEN HATA: burada yalnızca Authorization sayılıyordu; X-Sync-Token
+// kullanılan 16 GEÇERLİ çağrı "eksik" diye raporlandı.
 const YARDIMCI = /CK\.istek|istekBasliklari|ckBasliklar|Authorization|X-Sync-Token|YETKI|ANAHKTAR_BASLIK|baslikDegeri/;
 
-// ÖLÇÜLEN BOŞLUK: yalnızca fetch/EventSource bakılıyordu. curl ve Node http
+// İstek çağrısı desenleri.
+// ÖLÇÜLEN BOŞLUK: yalnızca fetch/EventSource bakılıyordu; curl ve Node http
 // çağrıları GÖRÜLMÜYORDU — korumasız kalan yöntem.
 const CAGRI = /fetch\s*\(|EventSource\s*\(|curl\s+[-\w]|https?\.(get|request)\s*\(/;
 
-// 401'yi bekleyen, kimliğin KASITLI olmadığı denetimler (korumayı sınıyorlar)
+// 401 bekleyen negatif testler kimliği KASITLI olarak göndermez.
 const BEKLENEN_401 = /401|Yetkisiz|anahtarsiz|anahtarsız|KORUMASIZ_IZN|reddedil/i;
 
 /**
  * Basit başlık nesnesi değişkenlerini çözer.
- *
- * ÖLÇÜLEN HATA: denetim `headers: H` yazan bir çağrıyı 3 satırlık pencereyle
- * inceliyordu. `H` ise dosyanın 50. satırında tanımlıydı:
- *     const H = { 'Content-Type': 'application/json', 'X-Sync-Token': 'full-token' };
- * Geçerli bir çağrıydı ama denetim göremedi ve 12 yanlış alarm üretti.
- * Düzeltme: dosya genelinde `{...}` ile tanımlanan değişkenler taranır ve
- * kimlik taşıyıp taşımadıkları eşlenir.
- *
- * @returns {Map<string, boolean>} değişken adı -> kimlik taşıyor mu
+ * ÖLÇÜLEN HATA: `headers: TH` yazan çağrıda kimlik 3 satır dışında tanımlıydı
+ * (`const TH = { 'X-Sync-Token': … }`); 3 satırlık pencere onu göremedi ve 12
+ * geçerli çağrı yanlış alarm üretti.
  */
 function baslikCoz(kod) {
   const m = new Map();
@@ -125,55 +114,43 @@ function baslikCoz(kod) {
 }
 
 /**
- * İSTEK YAPAN YARDIMCI FONKSİYONLARI çözer.
- *
- * ÖLÇÜLEN HATA (negatif kontrolle bulundu): gerçek hata geri getirildiğinde
- * denetim onu YAKALAMADI. Sebep yapısaldı:
- *
- *     const curl = (yol) => exec(`curl -s http://...${yol}`);   <- istek burada
- *     const d = await curl('/durum');                           <- uç burada
- *
- * Uç nokta çağrı yerinde, HTTP satırında değil. 3 satırlık pencere
- * `/durum`'u hiç görmüyordu. Yani denetim "hangi uca gidiyorsun" sorusunu
- * yanlış yerde arıyordu.
- *
- * Çözüm: istek yapan yardımcılar bulunur. Yardımcının KENDİSİ kimlik
- * taşıyorsa (ör. `curl -s ${YETKI} …`) çağrı yerleri güvenlidir. Taşımıyorsa
- * korumalı bir uca giden HER çağrı yeri gerçek eksiktir.
- *
- * @returns {{istekYapan:Set<string>, kimlikli:Set<string>}}
+ * İstek yapan YARDIMCI fonksiyonları çözer.
+ * ÖLÇÜLEN HATA: uç nokta HTTP satırında değil, ÇAĞRI YERİNDEydi
+ * (`curl('/durum')`). Yardımcının kendisi kimlik taşıyorsa çağrı yerleri
+ * güvenlidir; taşımıyorsa korumalı uca giden her çağrı gerçek eksiktir.
+ * (/g bayrağı YOK: exec() çağrıları arasında lastIndex birikir ve
+ *  tanımların çoğu bulunamaz — ölçülen hata.)
  */
 function yardimciCoz(kod) {
   const sat = kod.split('\n');
   const istekYapan = new Set();
   const kimlikli = new Set();
-  // ÖLÇÜLEN HATA: bu desen /g bayraklıydı ve satır satır exec() ile
-  // çağrılıyordu. /g bir desenin exec() çağrıları arasında lastIndex
-  // BİRİKİR; sonraki satırlar yanlış konumdan aranır ve tanımların
-  // çoğu bulunamaz. /g bayrağı kaldırıldı (her çağrı baştan arar).
   const tanim = /(?:const|let|var)\s+(\w+)\s*=\s*(?:async\s*)?(?:\([^)]*\)|\w+)\s*=>|(?:async\s+)?function\s+(\w+)\s*\(/;
   sat.forEach((l, i) => {
-    // Gövde, JS'te tanım satırından sonraki satırlarda olabilir.
-    const evrensel = tanim.exec(l);
-    if (!evrensel) return;
-    const ad = evrensel[1] || evrensel[2];
-    if (!ad || ad === 'function') return;
+    const m = tanim.exec(l);
+    if (!m) return;
+    const ad = m[1] || m[2];
+    if (!ad) return;
     const govde = sat.slice(i, i + 20).join('\n');
-    if (!CAGRI.test(govde)) return;           // istek yapmıyor, ilgili değil
+    if (!CAGRI.test(govde)) return;
     istekYapan.add(ad);
     if (YARDIMCI.test(govde)) kimlikli.add(ad);
   });
   return { istekYapan, kimlikli };
 }
 
-/**
- * Kodu tarar, kimlik göndermeyen korumalı uç çağrılarını döndürür.
- * @returns {Array<{satir:number, metin:string}>}
- */
-/**
- * İsteğin hemen ardından gelen DEVRİMİ döndürür (401 bekleyen negatif
- * testlerde doğrulama buradadır).
- */
+/** İsteğin kapsadığı GERÇEK ifade penceresi (sabit 3 satır değil). */
+function pencereKur(sat, i) {
+  let p = sat[i];
+  for (let k = i + 1; k < sat.length && k <= i + 6; k++) {
+    if (/;\s*$/.test(p)) break;
+    if (/^\s*(const|let|var|return|if|for|\/\/|\*)/.test(sat[k])) break;
+    p += '\n' + sat[k];
+  }
+  return p;
+}
+
+/** İsteğin hemen ardından gelen doğrulama deyimi (401 beklentisi burada). */
 function sonrakiDeyim(sat, i) {
   for (let k = i; k < Math.min(sat.length, i + 5); k++) {
     if (/^\s*(ok|assert|if\s*\()/.test(sat[k])) return sat.slice(k, k + 3).join('\n');
@@ -182,56 +159,32 @@ function sonrakiDeyim(sat, i) {
 }
 
 /**
- * Bir istek satırının kapsadığı GERÇEK ifade penceresini kurar.
- * Sabit 3 satır yerine ifade sınırı kullanılır; aksi halde yardımcı
- * tanımındaki istek, bir sonraki deyimin ucunu (ör. `/durum`) yanlışlıkla
- * alır ve aynı eksiği iki kez raporlar.
+ * Kodu tarar, kimlik göndermeyen korumalı uç çağrılarını döndürür.
+ * @returns {Array<{satir:number, metin:string}>}
  */
-function pencereKur(sat, i) {
-  let p = sat[i];
-  for (let k = i + 1; k < sat.length && k <= i + 6; k++) {
-    if (/;\s*$/.test(p)) break;                       // iftek bitti
-    if (/^\s*(const|let|var|return|if|for|\/\/|\*)/.test(sat[k])) break;  // yeni deyim
-    p += '\n' + sat[k];
-  }
-  return p;
-}
-
 function araKorumasiz(kod, cik) {
   const coz = baslikCoz(kod);
   const yrd = yardimciCoz(kod);
   const sat = kod.split('\n');
   sat.forEach((l, i) => {
-    // --- Yol 1: istek satırın kendisinde (fetch / curl / EventSource) ---
+    // Yol 1: istek satırın kendisinde
     if (CAGRI.test(l)) {
       const pencere = pencereKur(sat, i);
       if (!KORUMASIZ_UC.find((r) => r.test(pencere))) return;
       if (YARDIMCI.test(pencere)) return;
       if (BEKLENEN_401.test(pencere)) return;
-      // ÖLÇÜLEN HATA: 401 bekleyen negatif testlerin doğrulaması çağrıdan
-      // SONRAKİ deyimde yazılır. Pencerenin bir deyim daha ilerisi de
-      // bakılır; aksi halde kasıtlı negatif testler "eksik kimlik" diye
-      // raporlanır ve denetim kullanılamaz hale gelir.
       if (BEKLENEN_401.test(sonrakiDeyim(sat, i))) return;
       const hv = /headers\s*:\s*([A-Za-z_$][\w$]*)/.exec(pencere);
       if (hv && coz.get(hv[1]) === true) return;
       cik.push({ satir: i + 1, metin: l.trim().substring(0, 90) });
       return;
     }
-    // --- Yol 2: istek bir yardımcıdaysa, uç CAĞRI YERİNDEDİR ---
+    // Yol 2: istek bir yardımcıdaysa, uç çağrı yerindedir
     const cagri = /\b(\w+)\s*\(\s*['"`]([^'"`]+)['"`]/.exec(l);
     if (!cagri) return;
-    const ad = cagri[1];
-    if (!yrd.istekYapan.has(ad)) return;
+    if (!yrd.istekYapan.has(cagri[1])) return;
     if (!KORUMASIZ_UC.find((r) => r.test(cagri[2]))) return;
-    if (yrd.kimlikli.has(ad)) return;   // yardımcının kendisi kimlik gönderiyor
-    // ÖLÇÜLEN HATA: Yol 2 yalnızca tek satıra bakıyordu. Nesne argümanı
-    // çok satırlı olduğunda kimlik başlığı 2.-3. satırda gelir:
-    //     await istek('/plaka/oku', {
-    //       'Content-Type': 'application/json',
-    //       Authorization: 'Bearer ' + ANAHTAR,      <-- burada
-    //     }, 'POST');
-    // Bu yüzden çağrının ifade penceresi de taranır.
+    if (yrd.kimlikli.has(cagri[1])) return;
     if (YARDIMCI.test(l) || YARDIMCI.test(pencereKur(sat, i))) return;
     if (BEKLENEN_401.test(l) || BEKLENEN_401.test(sonrakiDeyim(sat, i))) return;
     cik.push({ satir: i + 1, metin: l.trim().substring(0, 90) });
@@ -241,85 +194,70 @@ function araKorumasiz(kod, cik) {
 
 let hata = 0;
 let kontrol = 0;
-
-console.log('=== DENETİMİN KENDİSİ SINANIYOR (kanıt) ===');
-// Negatif kontrol: kırık örnek YAKALANMALI.
-const kirik = araKorumasiz(
-  ['const r = await fetch("/durum");'].join('\n'), []);
-const kirikYakalandi = kirik.length === 1;
-// Negatif kontrol 2: curl ile kırık örnek (ölçülen boşluk tam olarak buydu)
-const kirikCurl = araKorumasiz(
-  ['exec(`curl -s http://127.0.0.1:4545/durum`)'].join('\n'), []);
-// Pozitif kontrol: doğru örnek TESPİT EDİLMEMELİ
-const dogru = araKorumasiz(
-  ['const r = await fetch("/durum", CK.istek());'].join('\n'), []);
-const dogruSessiz = araKorumasiz(
-  ['fetch("/durum", { headers: { Authorization: ANAHTAR } })'].join('\n'), []);
-// ÖLÇÜLEN HATA düzeltmesinin kanıtı: X-Sync-Token da geçerli kimliktir
-const dogruToken = araKorumasiz(
-  ['fetch("/durum", { headers: TH })  // TH = {"X-Sync-Token": "abc"}'].join('\n'), []);
-// Ölçülen hatanın kaynağı: `headers: H` ile tanımı dosyanın başında olan çağrı
-const dogruDegisken = araKorumasiz([
-  "const H = { 'Content-Type': 'application/json', 'X-Sync-Token': 'full-token' };",
-  "const r = await fetch(base + '/kayit/batch', { method: 'POST', headers: H });",
-].join('\n'), []);
-// Aynı biçim ama KİMLİKSİZ tanım: bu yakalanmalı
-const kirikDegisken = araKorumasiz([
-  "const H = { 'Content-Type': 'application/json' };",
-  "const r = await fetch(base + '/kayit/batch', { method: 'POST', headers: H });",
-].join('\n'), []);
-
-
-// --- Yol 2 sinamasi: istek bir YARDIMCI icindeyse uc, cagri yerindedir ---
-// (olculen hata tam olarak bu yoldu: uç nokta HTTP satırında değil,
-//  curl('/durum') çağrısındaydı.)
-const yardimciKirik = araKorumasiz([
-  'const curl = (yol) => exec(`curl -s http://127.0.0.1:4545${yol}`);',
-  "const d = await curl('/durum');",
-].join('\n'), []);
-const yardimciDuz = araKorumasiz([
-  "const YETKI = 1;",
-  'const curl = (yol) => exec(`curl -s ${YETKI} http://127.0.0.1:4545${yol}`);',
-  "const d = await curl('/durum');",
-].join('\n'), []);
 function isaret(k, ad) {
   if (k) { console.log('  GECTI  ' + ad); return 0; }
-  console.log('  KALDI  ' + ad + '  <-- denetim işe yaramıyor, yukarıdaki denetim anlamsız');
+  console.log('  KALDI  ' + ad + '  <-- denetim ise yaramıyor');
   return 1;
 }
-hata += isaret(kirikYakalandi, 'kırık fetch örneği yakalandı');
-hata += isaret(kirikCurl.length === 1, 'kırık curl örneği yakalandı (ölçülen boşluk)');
-hata += isaret(dogru.length === 0, 'doğru fetch örneği yanlış alarm vermiyor');
-hata += isaret(dogruSessiz.length === 0, 'doğru Authorization örneği yanlış alarm vermiyor');
-hata += isaret(dogruToken.length === 0, 'X-Sync-Token örneği yanlış alarm vermiyor (ölçülen kusurun kanıtı)');
-hata += isaret(dogruDegisken.length === 0, 'kimlikli `headers: H` değişkeni yanlış alarm vermiyor');
-hata += isaret(kirikDegisken.length === 1, 'kimlikSİZ `headers: H` değişkeni yakalandı');
-hata += isaret(yardimciKirik.length === 1, 'kimliksİZ curl yardımcısı çağrısı yakalandı (olçülen hata)');
-hata += isaret(yardimciDuz.length === 0, 'kimlikli curl yardımcısı çağrısı yanlış alarm vermiyor');
 
+// --- DENETİMİN KENDİSİ SINANIYOR (kanıt) ----------------------------------
+console.log('=== DENETIMIN KENDISI SINANIYOR (kanit) ===');
+const O = (...satirlar) => araKorumasiz(satirlar.join('\n'), []);
+
+hata += isaret(O('const r = await fetch("/durum");').length === 1, 'kırık fetch yakalandı');
+hata += isaret(O('exec(`curl -s http://127.0.0.1:4545/durum`)').length === 1, 'kırık curl yakalandı (ölçülen boşluk)');
+hata += isaret(O('const r = await fetch("/durum", CK.istek());').length === 0, 'doğru fetch yanlış alarm vermiyor');
+hata += isaret(O('fetch("/durum", { headers: { Authorization: ANAHTAR } })').length === 0, 'doğru Authorization yanlış alarm vermiyor');
+hata += isaret(O('fetch("/durum", { headers: TH }) // TH = {"X-Sync-Token":"a"}').length === 0, 'X-Sync-Token yanlış alarm vermiyor');
+hata += isaret(O(
+  "const H = { 'Content-Type': 'application/json', 'X-Sync-Token': 't' };",
+  "const r = await fetch(base + '/kayit/batch', { method: 'POST', headers: H });").length === 0,
+  'kimlikli headers:H değişkeni yanlış alarm vermiyor');
+hata += isaret(O(
+  "const H = { 'Content-Type': 'application/json' };",
+  "const r = await fetch(base + '/kayit/batch', { method: 'POST', headers: H });").length === 1,
+  'kimlikSİZ headers:H değişkeni yakalandı');
+hata += isaret(O(
+  'const curl = (yol) => exec(`curl -s http://127.0.0.1:4545${yol}`);',
+  "const d = await curl('/durum');").length === 1,
+  'kimliksİZ curl YARDIMCISI yakalandı (ölçülen hata)');
+hata += isaret(O(
+  'const YETKI = 1;',
+  'const curl = (yol) => exec(`curl -s ${YETKI} http://127.0.0.1:4545${yol}`);',
+  "const d = await curl('/durum');").length === 0,
+  'kimlikli curl YARDIMCISI yanlış alarm vermiyor');
+hata += isaret(O(
+  'const istek = (yol) => fetch("http://x" + yol);',
+  "const r = await istek('/durum');",
+  "ok(r.s === 401, 'anahtarsiz reddedildi');").length === 0,
+  '401 bekleyen negatif test muaf (sessiz bozulma yok)');
+hata += isaret(O('fetch("/kayitlar.html")').length === 0, '/kayitlar.html veri ucu DEĞİL (yanlış alarm yok)');
+
+// --- Dosya taraması ---------------------------------------------------------
 console.log('');
 console.log('=== DOSYA TARAMASI ===');
-// Bu dosya KENDİSİ taranmaz. İçindeki kasıtlı bozuk örnekler ("kırık fetch
-// örneği") denetimi sınar; taransa kendi kanıtını kendi hatası sanardı.
-// (Ölçülen yanlış alarm: 3 bulgu bu yüzden çıktı.)
-const hepsi = [...DOSYALAR, ...testDosyalari()].filter((d) => !/test-istemci-kimlik/.test(d));
+const hepsi = [...URETICI, ...testDosyalari()];
+
+// Kapsam kanıtı: e2e betikleri GERÇEKTEN taranıyor mu? (ölçülen kaçırma)
+for (const gerekli of ['tests/e2e-live.js', 'tests/e2e-telefon.js']) {
+  hata += isaret(hepsi.indexOf(gerekli) >= 0, 'kapsam: ' + gerekli + ' taranıyor');
+}
+
 for (const d of hepsi) {
   const yol = path.join(KOK, d);
   if (!fs.existsSync(yol)) { console.log('  EKSİK  ' + d); hata++; continue; }
-  const bulunan = [];
-  araKorumasiz(fs.readFileSync(yol, 'utf8'), bulunan);
-  kontrol += (fs.readFileSync(yol, 'utf8').match(CAGRI) || []).length;
-  if (bulunan.length) {
-    for (const b of bulunan) {
-      console.log('  EKSİK   ' + d + ':' + b.satir + '  ' + b.metin);
-      hata++;
-    }
+  const kod = fs.readFileSync(yol, 'utf8');
+  kontrol += (kod.match(CAGRI) || []).length;
+  const bulunan = araKorumasiz(kod, []);
+  for (const b of bulunan) {
+    console.log('  EKSİK   ' + d + ':' + b.satir + '  ' + b.metin);
+    hata++;
   }
 }
 console.log('  (taranan dosya: ' + hepsi.length + ')');
 
 console.log('');
-console.log('Denetlenen çağrı deseni: ' + kontrol);
+console.log('Denetlenen istek deseni: ' + kontrol);
 console.log('Sorun: ' + hata);
 if (hata === 0) {
   console.log('SONUÇ: geçerli — tüm korumalı uç çağrıları kimlik gönderiyor');

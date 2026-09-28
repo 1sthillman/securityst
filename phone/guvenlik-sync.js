@@ -57,7 +57,25 @@ var CK_YAPILANDIRMA = (typeof window !== "undefined" && window.CK_YAPILANDIRMA) 
 function sunucuKoku() {
   var ayar = String(CK_YAPILANDIRMA.SUNUCU_ADRESI || "").trim().replace(/\/+$/, "");
   if (ayar) return ayar;
-  return window.location.origin;
+  // ÖLÇÜLEN HATA (tarayıcı konsolundan, 29.09.2026): burada
+  // `location.origin` dönüyordu. Proje sayfası https://<host>/<depo>/
+  // altında yayınlanıyor; `origin` yalnızca kök alan adıdır ve depo
+  // yolunu İÇERMEZ. Ölçülen istek:
+  //   POST https://1sthillman.github.io/plaka/oku  ->  405
+  // Depo yolu bile düşüyordu; yapılandırma boşken uygulama HİÇBİR
+  // yerde çalışmıyor, sessizce yanlış yere gidiyordu.
+  // DOĞRU GERİ DÖNÜŞ: uygulamanın kendi klasörü. Böylece companion
+  // sunucusundan sunulduğunda yine aynı kökeni kullanılır, GitHub
+  // üzerinden sunulduğunda ise depoya özgü yol dahil doğru taban kullanılır.
+  var y = window.location.pathname || "/";
+  var kok = (window.location.origin + y.replace(/[^/]*$/, "")).replace(/\/+$/, "");
+  // ÖLÇÜLEN HATA: burada kok doğrudan döndürülüyordu; LAN kurulumunda
+  // ".../telefon" dönüyordu ve istek ".../telefon/durum" oluyordu (404).
+  // Çünkü API uçları SUNUCU KÖKÜNDEDİR, `/telefon` yalnızca uygulamanın
+  // bulunduğu klasördür (companion `express.static` ile oradan servis
+  // eder). Bu segment tanıyorsak çıkarılır.
+  if (/\/telefon$/i.test(kok)) kok = kok.replace(/\/telefon$/i, "");
+  return kok;
 }
 
 var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
@@ -331,7 +349,16 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
     try { b['X-Sync-Cihaz'] = cihazKimligiAl(); } catch (e) { /* kimlik yok */ }
     // Anahtar da yapılandırmadan gelebilir: tek yerden değiştirmek için.
     try { b['Authorization'] = 'Bearer ' + (CK_YAPILANDIRMA.API_ANAHTARI || API_ANAHTARI); } catch (e) {}
-    try { if (S.token) b['X-Sync-Token'] = S.token; } catch (e) {}
+    // Sunucu iki kimliği de kabul eder. Öncelik sırası:
+    //   1) eşleşme ile gelen kurulum anahtarı (S.token)
+    //   2) yapilandırmadaki müşteri anahtarı
+    //   3) yoksa gömülü API anahtarı (yedek yol)
+    // ÖLÇÜLDÜ: kurulum anahtarı tek başına yeterli (HTTP 200). Bu yüzden
+    // müşteri kendi anahtarını yazınca paylaşılan anahtara gerek kalmaz.
+    try {
+      var kurulum = S.token || CK_YAPILANDIRMA.KURULUM_ANAHTARI || '';
+      if (kurulum) b['X-Sync-Token'] = kurulum;
+    } catch (e) {}
     return b;
   }
 
@@ -869,6 +896,22 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
     },
     /** Eşleşme penceresini açar (panelden okunan adres + anahtar buraya girilir). */
     ayarlar: openCfg,
+    /**
+     * Sunucu adresi — TEK doğruluk kaynağı.
+     *
+     * ÖLÇÜLEN HATA (kullanıcı konsolu, 29.09.2026): adresin ÜÇ ayrı kaynağı
+     * vardı ve birbirinden habersizdi:
+     *   a) senkron.js    -> S.baseUrl (kayıt gönderimi bunu kullanıyor)
+     *   b) plaka-yerel.js-> adres dosya YÜKLENİRKEN donduruluyordu ve
+     *                      yalnızca location.origin’a bakıyordu
+     *   c) eşleşme       -> sunucuKoku() (yapılandırma veya origin)
+     * Kullanıcı eşleşme penceresine sunucu adresini yazdı, ama plaka okuma
+     * yine sayfanın kendi kökenine gitti. Ölçülen kanıt:
+     *   GET  https://1sthillman.github.io/plaka/durum -> 404
+     *   POST https://1sthillman.github.io/plaka/oku  -> 405
+     * Bu işlev tek kaynak olur; plaka-yerel.js ve eşleşme bunu kullanır.
+     */
+    adres: function () { return S.baseUrl || sunucuKoku(); },
     flush: tryFlush,
     flushBatch: tryFlushBatch,
     enqueueVisit: enqueueVisit,

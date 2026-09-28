@@ -71,14 +71,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     console.log(`E2E — varlık ${v}: ${s.status}`);
   }
 
-  r = await fetch(`http://127.0.0.1:${PORT}/kayitlar?limit=5`);
+    // ÖLÇÜLEN HATA: bu çağrı kimlik göndermiyordu; sunucu 401 döndü ve e2e-live BAŞARISIZ oldu.
+r = await fetch(`http://127.0.0.1:${PORT}/kayitlar?limit=5`, { headers: H });
   const lj = await r.json();
   const listOk = r.ok && lj.total === 1 && lj.records[0].plate === '34 ABC 123';
   console.log('E2E — /kayitlar:', listOk ? 'liste + arama API OK' : 'HATA ' + JSON.stringify(lj));
 
   // Gerçek zamanlı akış: yeni kayıt anında düşmeli
   const ctrl = new AbortController();
-  const sse = await fetch(`http://127.0.0.1:${PORT}/olay`, { signal: ctrl.signal });
+    // ÖLÇÜLEN HATA: bu çağrı kimlik göndermiyordu; sunucu 401 döndü ve canlı akış (SSE) 401 döndü.
+const sse = await fetch(`http://127.0.0.1:${PORT}/olay`,
+  { signal: ctrl.signal, headers: H });
   const rd = sse.body.getReader();
   const dec = new TextDecoder();
   await rd.read();

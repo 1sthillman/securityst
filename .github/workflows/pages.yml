@@ -23,6 +23,8 @@ on:
       - 'phone/guvenlik-sync.js'
       - 'Security-ST/index.html'
       - 'shared/anahtar.js'
+      - 'companion/public/telefon/yapilandirma.js'
+      - 'tools/yayin-yapilandirma.js'
       - '.github/workflows/pages.yml'
   workflow_dispatch:
 
@@ -59,6 +61,48 @@ jobs:
           mkdir -p site
           cp -R companion/public/telefon/. site/
           echo "site/ yeniden kuruldu"
+
+      # ------------------------------------------------------------------
+      #  MÜŞTERİ YAYIN YAPILANDIRMASI
+      # ------------------------------------------------------------------
+      #  Müşteri Settings -> Secrets and variables -> Actions altına
+      #  anahtarları koyar; burada bunlar yayınlanan yapilandırmaya yazılır.
+      #  Müşteri hiçbir komut yazmaz, hiçbir dosyaya dokunmaz.
+      #
+      #  Kullanılabilir adlar (öncelik sırasıyla):
+      #    secrets.CK_SUNUCU_ADRESI   -> SUNUCU_ADRESI  (örn. http://192.168.1.42:4545)
+      #    secrets.CK_KURULUM_ANAHTARI-> KURULUM_ANAHTARI (eşleşme sayfasındaki 64 haneli)
+      #    secrets.CK_API_ANAHTARI    -> API_ANAHTARI    (isteğe bağlı)
+      #  Hiçbiri yoksa depodaki yapilandirma.js olduğu gibi kullanılır.
+      - name: Musteri yapilandirmasini yaz
+        env:
+          GIT_ASKISI: ${{ github.event_name }}
+          SUNUCU: ${{ secrets.CK_SUNUCU_ADRESI || vars.CK_SUNUCU_ADRESI }}
+          KURULUM: ${{ secrets.CK_KURULUM_ANAHTARI || vars.CK_KURULUM_ANAHTARI }}
+          APIKEY: ${{ secrets.CK_API_ANAHTARI || vars.CK_API_ANAHTARI }}
+        run: |
+          set -e
+          # Değerler günlüğe YAZILMAZ (yalnızca "var/yok" bilgisi verilir).
+          [ -n "$SUNUCU" ]   && echo "::notice::Sunucu adresi secret/var ile alindi" || echo "::notice::Sunucu adresi secret/var ile gelmedi"
+          [ -n "$KURULUM" ] && echo "::notice::Kurulum anahtari secret/var ile alindi" || echo "::notice::Kurulum anahtari secret/var ile gelmedi"
+          [ -n "$APIKEY" ]  && echo "::notice::API anahtari secret/var ile alindi" || echo "::notice::API anahtari secret/var ile gelmedi"
+          node tools/yayin-yapilandirma.js
+
+          # ÖLÇÜLEN HATA: sunucu adresi tanımlı değilken site SESSİZCE
+          # yayınlanıyordu; uygulama kendi sunucusu yerine GitHub’a
+          # gidiyordu (POST .../plaka/oku -> 405). Bozuk site yayınlamak
+          # yerine akış BURADA durur ve ne yapılması gerektiğini söyler.
+          # (Rehber kuralı: sessiz hata yutma yok.)
+          if [ -z "$SUNUCU" ]; then
+            echo "::error::CK_SUNUCU_ADRESI tanimli degil - yayinlamak yerine DURDURULDU."
+            echo "::error::1) Paneli acin ve eslesme sayfasina gidin; sunucu adresi orada yazar."
+            echo "::error::2) GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret"
+            echo "::error::     CK_SUNUCU_ADRESI     = http://<bilgisayar-ip>:4545"
+            echo "::error::     CK_KURULUM_ANAHTARI = eslesme sayfasindaki 64 haneli anahtar"
+            echo "::error::3) Actions sekmesinden bu akisi yeniden calistirin (Run workflow)."
+            exit 1
+          fi
+
 
       - name: YAYIN KORUMASI (panel sizmasin)
         run: |

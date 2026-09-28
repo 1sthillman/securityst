@@ -37,4 +37,9 @@ window.CK_YAPILANDIRMA = {
 
   // Boş bırakılırsa gömülü anahtar (senkron.js) kullanılır.
   API_ANAHTARI: '',
+
+  // Müşterinin kendi bilgisayarının kurulum anahtarı (64 haneli).
+  // Panel -> eşleşme sayfasında görünür. Bu doldurulursa paylaşılan
+  // API anahtarına hiç gerek kalmaz.
+  KURULUM_ANAHTARI: '',
 };

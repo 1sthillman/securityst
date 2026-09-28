@@ -54,15 +54,39 @@
 
   // ---- yapılandırma -------------------------------------------------------
   var YAPILANDIRMA = (window.OCR_CONFIG && window.OCR_CONFIG.yerel) || {};
-  var ADRES = YAPILANDIRMA.url || '';                 // boş -> aynı köken
-  var TOKEN = YAPILANDIRMA.token || '';
-  // Aynı köken varsayılan: uygulama zaten companion servisinden yayınlandığı
-  // için IP değişse bile adres her zaman doğru kalır.
-  var KOK = ADRES || (window.location ? window.location.origin : '');
-  if (window.location && window.location.protocol === 'file:') KOK = '';
-  var AKTIF = !!KOK;
 
-  function tam(url) { return KOK + url; }
+/**
+ * Sunucu adresi — TEK kaynaktan, İSTEK ANINDA.
+ *
+ * ÖLÇÜLEN HATA (kullanıcı konsolu, 29.09.2026): adres dosya yüklenirken
+ * bir kez hesaplanıp donduruluyordu ve yalnızca location.origin degerine
+ * bakiyordu. Kullanici eslesme penceresine sunucu adresini yazdi, ama
+ * plaka okuma yine sayfanin kendi kokenine gitti:
+ *   GET  https://1sthillman.github.io/plaka/durum -> 404
+ *   POST https://1sthillman.github.io/plaka/oku  -> 405
+ *
+ * Cozum sirasi:
+ *   1) eslesmede ogrenilen / kullanicinin girdigi adres (GuvenlikSync.adres)
+ *   2) OCR yapilandirmasindaki adres
+ *   3) sayfanin kendi kokeni (companion sunucusundan yayinlandiginda dogru)
+ */
+function kokCoz() {
+  try {
+    if (window.GuvenlikSync && typeof window.GuvenlikSync.adres === "function") {
+      var a = String(window.GuvenlikSync.adres() || "");
+      if (a) return a.replace(/\/+$/, "");
+    }
+  } catch (e) { /* senkron.js henuz yuklenmemis olabilir */ }
+  if (ADRES) return String(ADRES).replace(/\/+$/, "");
+  if (window.location && window.location.protocol === 'file:') return '';
+  return (window.location && window.location.origin) || '';
+}
+// Geriye uyum: disaridan KOK okunurken guncel degeri gorunsun diye
+// islev olarak tutulur (eski kullanimlar KOK + yol idi).
+function KOK() { return kokCoz(); }
+var AKTIF = true;
+
+function tam(url) { return kokCoz() + url; }
 
   // ---- durum göstergesi (ekranın köşesine küçük bir rozet) ----------------
   var rozet = null;
@@ -548,7 +572,7 @@
   CKYerel.oku = oku;
   CKYerel.durum = function () {
     return {
-      hazir: CKYerel.hazir, adres: KOK, motor: CKYerel.motor,
+      hazir: CKYerel.hazir, adres: KOK(), motor: CKYerel.motor,
       istek: CKYerel.istekSayisi, basarili: CKYerel.basariliSayisi,
       ortalamaSure: CKYerel.basariliSayisi ? Math.round(CKYerel.toplamSure / CKYerel.basariliSayisi) : 0,
       sonHata: CKYerel.sonHata,

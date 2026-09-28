@@ -27,18 +27,8 @@ const ok = (c, ad, alinan) => {
   else { fail++; console.log('FAIL — ' + ad + (alinan ? '  -> ' + alinan : '')); }
 };
 
-// ÖLÇÜM BETİĞİ HATASI DÜZELTMESİ: ilk denemede sadece sunucuKoku() işlevi
-// kopyalanıyordu, CK_YAPILANDIRMA beyanı dışarıda kalıyordu ve
-// "not defined" hatası veriyordu. İki parça BİRLİKTE çalıştırılmalı.
-const kod = fs.readFileSync(KAYNAK, 'utf8');
-const bas = kod.indexOf('var CK_YAPILANDIRMA');
-const son = kod.indexOf('}', kod.indexOf('return window.location.origin', bas)) + 1;
-
-if (bas < 0 || son <= bas) {
-  console.log('FAIL — yapılandırma bloğu bulunamadı (sunucuKoku / CK_YAPILANDIRMA)');
-  process.exit(1);
-}
-const parca = kod.slice(bas, son);
+const { blokCikar, yapilandirmaVeKok } = require('./kod-parca.js');
+const parca = yapilandirmaVeKok(fs.readFileSync(KAYNAK, 'utf8'));
 
 function calistir(pencere) {
   const kutu = Object.assign({ window: pencere }, pencere);
@@ -71,6 +61,35 @@ ok(calistir({
 }) === 'https://x', 'yalnızca boşluk içeren yapılandırma yok sayılır');
 
 // Üretilmiş çıktı da yapılandırmayı yüklemeli
+// --- Proje alt yolu (ölçülen hata) ------------------------------------
+// GitHub Pages proje sayfası /<depo>/ altındadır. `location.origin` yalnızca
+// kök alan adıdır; depo yolunu içermez. Ölçülen hata: uygulama
+// https://1sthillman.github.io/plaka/oku adresine gidiyordu (405).
+const PROJE = { location: { origin: 'https://1sthillman.github.io', pathname: '/securityst/index.html' } };
+const projeKok = calistir(PROJE);
+ok(projeKok === 'https://1sthillman.github.io/securityst',
+  'proje sayfasında depo yolu KORUNUYOR (ölçülen hatanın düzeltmesi)', projeKok);
+
+ok(!/^https:\/\/1sthillman\.github\.io$/.test(projeKok),
+  'kök alan adına düşülmüyor (eski hata tekrarlanmıyor)');
+
+// Alt klasörde çalışsa da aynı kural geçerli: `/telefon` segmenti
+// SUNUCU KÖKÜ değildir, atılır. (companion `express.static` ile oradan
+// servis eder; API uçları köktedir.)
+const ALT = { location: { origin: 'https://1sthillman.github.io', pathname: '/securityst/telefon/index.html' } };
+ok(calistir(ALT) === 'https://1sthillman.github.io/securityst',
+  'alt klasörde `/telefon` atılır, depo yolu korunur', calistir(ALT));
+
+// GERÇEK KURAL: API uçları sunucu KÖKÜNDEDİR. `/telefon` kök değildir.
+// (ölçülen hata: ".../telefon" + "/durum" -> ".../telefon/durum" -> 404)
+const TELEFON_AD = { location: { origin: 'http://192.168.1.42:4545', pathname: '/telefon/' } };
+ok(calistir(TELEFON_AD) === 'http://192.168.1.42:4545',
+  'LAN: /telefon atılır, uçlar sunucu kökünde açılır', calistir(TELEFON_AD));
+
+const KOK_DUZ = { location: { origin: 'http://192.168.1.42:4545', pathname: '/telefon/index.html' } };
+ok(calistir(KOK_DUZ) === 'http://192.168.1.42:4545',
+  'LAN kurulumunda yine sunucunun kendisi kullanılıyor (geriye uyum)', calistir(KOK_DUZ));
+
 console.log('\n--- ÜRETİLMİŞ ÇIKTI ---');
 const uretilmis = path.join(__dirname, '..', '..', 'companion', 'public', 'telefon', 'index.html');
 if (fs.existsSync(uretilmis)) {
