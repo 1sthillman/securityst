@@ -18,20 +18,32 @@ companion/data/servis.log
 companion/ocr/lang/
 companion/ocr/fizibilite.js
 
-# Security-ST -> sunucu surumu donusturucusu uretilen dosyalar.
-# (Uygulamanin KENDISI companion/public/telefon/ altinda uretilir; kaynak
-#  Security-ST/index.html depoda durur.)
-companion/public/telefon/
-companion/public/telefon/vendor/
+# --- Telefon uygulamasi (companion/public/telefon/) ---
+#
+# ÖLÇÜLEN HATA: bu klasörün TAMAMI dışlanıyordu. Gerekçe doğruydu
+# (bazı dosyalar dönüştürücü tarafından üretilir) ama sonuç yanlıştı:
+# elle yazılan dosyalar da yalnızca bu klasörde bulunur ve depoya hiç
+# girmezdi. GitHub Actions taze klon aldığında "VAR OLMAYAN harici betik"
+# hatasıyla yayınlamayı reddediyordu.
+#
+# DÜZELTME: yalnızca GERÇEKTEN üretilen dosyalar dışlanır.
+companion/public/telefon/index.html
+companion/public/telefon/senkron.js
+companion/public/telefon/ocr-config.js
 
-// --- Derlenmiş çıktılar (kaynak DEĞİL, paketleme betiği üretir) ---
+# --- Elle yazılan / satın alınan dosyalar: depoda DURUR ---
+# (aşağıdakiler dönüştürücü tarafından üretilmez)
+#   plaka-yerel.js, canli-okuma.js, yerel-kamera.js,
+#   guvenli-kaynak.js, yapilandirma.js, vendor/*
+
+# --- Derlenmiş çıktılar (kaynak DEĞİL, paketleme betiği üretir) ---
 *.exe
 *.dll
 !.gitignore
 
-// --- İç içe depo: Security-ST kendi .git'ini taşıyordu. Düz klasör olarak
-//     eklenmesi gerekiyor; gitlink (mode 160000) olursa dosyalar depoya
-//     GİRMEZ ve derleme kırılır. ---
+# --- İç içe depo: Security-ST kendi .git'ini taşıyordu. Düz klasör olarak
+#     eklenmesi gerekiyor; gitlink (mode 160000) olursa dosyalar depoya
+#     GİRMEZ ve derleme kırılır. ---
 Security-ST/.git/
 
 # GitHub Pages yayin klasoru: is akisi companion/public/telefon/ dan yeniden uretir.
