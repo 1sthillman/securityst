@@ -52,6 +52,29 @@
   window.CKYerelKamera = API;
 
   /** Güvenli kaynak mı? (canlı önizleme için gerekir) */
+  /**
+   * Telefon kamerası tercihi — VARSAYILAN AÇIK.
+   *
+   * Uygulama `window.CKPhoneCam()` ile yayımlar. O yoksa (yükleme sırası
+   * farkı) tercih doğrudan `ck_pref` kaydından okunur. Hiçbiri yoksa
+   * AÇIK kabul edilir: bu yol her koşulda çalışır, canlı ön izleme ise
+   * yalnızca https altında mümkündür. Sessizce kapalı başlamak
+   * kullanıcıyı belirsiz bir hata ekranıyla baş başa bırakırdı.
+   */
+  function telefonKameraTercih() {
+    try {
+      if (typeof window.CKPhoneCam === "function") return window.CKPhoneCam() !== false;
+    } catch (e) { /* uygulama henüz yüklenmedi */ }
+    try {
+      var ham = localStorage.getItem("ck_pref");
+      if (ham) {
+        var pr = JSON.parse(ham);
+        if (pr && typeof pr.phoneCam === "boolean") return pr.phoneCam;
+      }
+    } catch (e) { /* okunamadi */ }
+    return true;
+  }
+  
   function guvenliKaynakMi() {
     if (typeof window.isSecureContext === 'boolean') return window.isSecureContext;
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
@@ -223,7 +246,11 @@
     if (!Cam || typeof Cam.open !== 'function' || Cam.__ckSarildi) return;
     var asil = Cam.open;
     Cam.open = function (ctx) {
-      if (guvenliKaynakMi()) return asil.call(Cam, ctx);
+      // AYAR (varsayılan AÇIK): telefonun kendi kamerası kullanılsın.
+      // Kullanıcı kapatırsa VE sayfa güvenliyse canlı ön izleme açılır.
+      // Güvensiz kaynakta (http) canlı ön izleme zaten mümkün değildir;
+      // o durumda da telefon kamerası açılır, sebebi ekranda yazılır.
+      if (guvenliKaynakMi() && !telefonKameraTercih()) return asil.call(Cam, ctx);
       API.sonHata = null;
       sheetGoster((ctx && ctx.mode) || Cam.ctxMode || 'scan');
       yaz('Telefonun kamerası açılıyor…');

@@ -50,3 +50,7 @@ Security-ST/.git/
 # Tek dogruluk kaynagi companion/public/telefon/ olsun; iki kopya tutulursa
 # biri bayatlar ve yanlis yayinlanir.
 site/
+
+# Gercek plaka fotografi (kullanicidan geldi). Depo herkese acik: plaka
+# gorseli koyulmaz. Test gorselleri tests/fixtures/ altindadir.
+plaka.jpg

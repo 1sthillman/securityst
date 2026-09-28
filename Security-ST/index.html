@@ -1436,7 +1436,13 @@ body.cam-on{ overflow:hidden; }
           <div class="smain"><div class="st">Kayda plaka sor</div><div class="ss">Giriş kaydında plaka alanı açılır</div></div>
           <div class="sw" data-sw="autoPlate"></div>
         </div>
-        <div class="srow" data-set="autoCam">
+        <div class="srow" data-set="phoneCam">
+<div class="sico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h3l2-2h6l2 2h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+<div class="smain"><div class="st">Telefonun kamerası</div>
+<div class="ss">Fotoğraf çek, oku, kaydet. Sertifika gerekmez. Kapatırsanız yalnızca https üzerinde canlı ön izleme açılır</div>
+<div class="sw" data-sw="phoneCam"></div>
+</div>
+<div class="srow" data-set="autoCam">
           <div class="sico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"/><circle cx="12" cy="13" r="4"/></svg></div>
           <div class="smain"><div class="st">Kamera açılınca kendi çeksin</div><div class="ss">Görüntü oturunca plaka otomatik okunur</div></div>
           <div class="sw" data-sw="autoCam"></div>
@@ -2026,8 +2032,22 @@ function buzz(ms){ if(P.haptic && navigator.vibrate) { try{ navigator.vibrate(ms
 
 /* ---------------------------------------------------------------- 1. tercihler */
 const DEF = { guard:'', names:[], tts:false, sound:true, haptic:true, autolearn:true, autoPlate:true,
-  autoCam:true, autoFirm:true, rate:1, waLink:'', lastExport:0, lastImport:0, lastSync:0 };
+  // phoneCam: telefonun kendi kamerasi (varsayilan ACIK).
+// Olcum: bu yol konsolda "Kare yakalandi: 1280x720" ile calisiyor.
+// Kapatilirsa guvenli kaynakta canli onizleme kullanilir.
+phoneCam:true, autoCam:true, autoFirm:true, rate:1, waLink:'', lastExport:0, lastImport:0, lastSync:0 };
 let P = load('ck_pref', DEF);
+/**
+ * Telefon kamerasi tercihi — AÇIKSA telefonun kamerası kullanılır.
+ *
+ * ÖLÇÜLEN GEREKÇE: bu yol http (güvensiz kaynak) altında da çalışıyor;
+ * kullanıcının konsolunda "Kare yakalandı: 1280x720" kanıtı var.
+ * canlı ön izleme (getUserMedia) yalnızca https altında mümkündür.
+ *
+ * Buraya güvenmek yerine doğrudan P okunur: hem tek doğruluk kaynağı
+ * kalır hem de yükleme sırasından bağımsız çalışır.
+ */
+window.CKPhoneCam = function () { return P.phoneCam !== false; };
 /* Sesli okuma (TTS) varsayılan KAPALI — isteyen Ayarlar'dan açar.
    Daha önce kaydedilmiş tercihlerde "otomatik açılmış" değerler de kapatılır. */
 if(P.tts && !P.ttsSet){ P.tts=false; savePrefs(); }

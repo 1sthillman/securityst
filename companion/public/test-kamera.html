@@ -1,0 +1,133 @@
+<!doctype html>
+<!--
+  ============================================================================
+  KAMERA YOLU ÖLÇÜMÜ (gerçek uygulama koduyla)
+  ============================================================================
+  Bu sayfa jenerik bir test DEĞİLDİR. Uygulamanın kendi kamera yolunu
+  çalıştırır ve hangi yolun seçildiğini ölçer:
+
+    A) getUserMedia (canlı ön izleme)  — yalnızca güvenli kaynakta (https)
+    B) <input capture="environment">   — güvenli kaynak YOKSA (http)
+
+  Kulübede sunucu http üzerinden servis yapar, yani güvenli kaynak DEĞİLDİR.
+  Bu durumda uygulamanın B yoluna düşmesi beklenir; bu da sertifika,
+  profil kurulumu veya herhangi bir ayar gerektirmez.
+
+  ÖLÇÜLEN SONUÇ ekrana yazılır. Testin amacı tahmin etmemektir.
+  ============================================================================
+-->
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kamera yolu ölçümü</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 18px; }
+  h1 { font-size: 20px; margin: 0 0 6px; }
+  .kutu { background: #f4f4f6; border-radius: 10px; padding: 12px 14px; margin: 10px 0; }
+  .basari { background: #e6f4ea; } .uyari { background: #fff4e5; } .hata { background: #fdeaea; }
+  code { background: #fff; padding: 1px 5px; border-radius: 4px; font-size: 14px; }
+  button { font: inherit; padding: 14px 20px; border-radius: 10px; border: 0;
+           background: #1a73e8; color: #fff; width: 100%; }
+  img { max-width: 100%; margin-top: 10px; border-radius: 10px; }
+  video { max-width: 100%; margin-top: 10px; border-radius: 10px; background: #000; }
+</style>
+</head>
+<body>
+
+<h1>Kamera yolu ölçümü</h1>
+
+<div class="kutu" id="durum">
+  <b>Kontrol ediliyor…</b>
+</div>
+
+<div class="kutu">
+  <b>Sayfa:</b> <code id="adres"></code><br>
+  <b>Güvenli kaynak:</b> <code id="guvenli"></code><br>
+  <b>Kullanılacak yol:</b> <code id="yol"></code>
+</div>
+
+<button id="btn">Kamerayı Aç</button>
+
+<div id="sonuc"></div>
+
+<script>
+(function () {
+  var el = function (id) { return document.getElementById(id); };
+  var guvenli = (window.isSecureContext === true) &&
+                !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+
+  el('adres').textContent = location.href;
+  el('guvenli').textContent = guvenli ? 'EVET (https)' : 'HAYIR (http)';
+  el('yol').textContent = guvenli
+    ? 'A) getUserMedia — canlı ön izleme'
+    : 'B) <input capture="environment"> — telefonun kamerası';
+
+  var kutu = el('durum');
+  if (guvenli) {
+    kutu.className = 'kutu basari';
+    kutu.innerHTML = '<b>Güvenli kaynak var.</b> Canlı ön izleme kullanılabilir.';
+  } else {
+    kutu.className = 'kutu uyari';
+    kutu.innerHTML = '<b>Güvenli kaynak yok (http).</b> ' +
+      'Uygulamanın da kullanacağı yol: telefonun kendi kamerası. ' +
+      'Sertifika gerekmez. <b>Alttaki düğmeye basın.</b>';
+  }
+
+  // --- Yol B: uygulamanın kullandığı yöntemin TAMAMEN aynısı -------------
+  // (yerel-kamera.js, satır 89-93 ile birebir)
+  function yolB() {
+    var el2 = document.createElement('input');
+    el2.type = 'file';
+    el2.accept = 'image/*';
+    el2.setAttribute('capture', 'environment');
+    el2.style.display = 'none';
+    document.body.appendChild(el2);
+    el2.addEventListener('change', function (ev) {
+      var d = ev.target.files && ev.target.files[0];
+      if (!d) { yaz('hata', 'Dosya seçilmedi.'); return; }
+      var g = document.createElement('img');
+      g.src = URL.createObjectURL(d);
+      g.onload = function () {
+        yaz('basari',
+          '<b>KAMERA ÇALIŞTI.</b><br>' +
+          'Dosya: ' + d.name + '<br>' +
+          'Boyut: ' + Math.round(d.size / 1024) + ' KB<br>' +
+          'Görüntü: ' + g.naturalWidth + '×' + g.naturalHeight + '<br><br>' +
+          '<b>Sonuç:</b> güvenli kaynak olmadan da plaka okuma mümkün. ' +
+          'Sertifika, DuckDNS ve profil kurulumu gerekmiyor.');
+        el('sonuc').innerHTML = '';
+        el('sonuc').appendChild(g);
+      };
+    });
+    el2.click();
+  }
+
+  // --- Yol A: yalnızca güvenli kaynakta ---------------------------------
+  function yolA() {
+    var v = document.createElement('video');
+    v.setAttribute('playsinline', '');   // iOS için
+    v.muted = true; v.autoplay = true;
+    el('sonuc').appendChild(v);
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+      .then(function (s) {
+        v.srcObject = s;
+        yaz('basari', '<b>Canlı ön izleme açıldı.</b> Fotoğraf çekmek için bir düğme gerekir.');
+      })
+      .catch(function (e) {
+        yaz('hata', 'Canlı ön izleme açılamadı: ' + e.name);
+      });
+  }
+
+  function yaz(sinif, html) {
+    var k = document.createElement('div');
+    k.className = 'kutu ' + sinif;
+    k.innerHTML = html;
+    el('sonuc').insertBefore(k, el('sonuc').firstChild);
+  }
+
+  el('btn').addEventListener('click', function () { guvenli ? yolA() : yolB(); });
+})();
+</script>
+</body>
+</html>
