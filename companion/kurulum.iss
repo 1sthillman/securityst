@@ -165,6 +165,10 @@ Source: "ocr\plaka-fpo.js"; DestDir: "{app}\app\ocr"; Flags: ignoreversion
 ; (geliştirmede çalışır, müşterinin bilgisayarında bozulur). test-kurulum.js
 ; paket bütünlüğünü sınıyor — dosya burada olmazsa test düşüyor.
 Source: "ocr\coklu.js";    DestDir: "{app}\app\ocr"; Flags: ignoreversion
+; Plaka dedektoru (YOLOv11 nano .onnx) — 29.09.2026 eklendi.
+; Not: "ocr\models\*" satiri zaten TUM modelleri paketliyor, bu yuzden
+; plaka-yolo.onnx (10 MB) ayrica yazilmaz.
+Source: "ocr\yolo-plaka.js"; DestDir: "{app}\app\ocr"; Flags: ignoreversion
 Source: "ocr\hat-fpo.js";   DestDir: "{app}\app\ocr"; Flags: ignoreversion
 ; Model dosyaları + config + SHA-256 özet dosyaları. Özet, kurulumda bozuk
 ; kopyalamayı yakalar (model sessizce değişmişse okuma tamamen yanlış olur).

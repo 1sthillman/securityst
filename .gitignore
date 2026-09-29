@@ -63,6 +63,10 @@ tests/ara/plaka-olc/
 /plaka*.jpg
 /plaka*.jpeg
 /plaka*.png
+# 29.09.2026: webp kuralı unutulmuştu; plaka2.webp (31 ATM 325) izlenip
+# depoya girmeye hazır bir durumda kalıyordu. Fotoğraflar gizli kalmalı.
+/plaka*.webp
+/PLAKA*.webp
 /PLAKA*.jpg
 /PLAKA*.jpeg
 /basarisiz*.jpg

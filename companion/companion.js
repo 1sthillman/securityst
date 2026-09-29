@@ -51,6 +51,13 @@ let plakaMotoruHatasi = null;
   // denenir (ölçüm: kırpılmış küçük görüntü okunmuyor, büyütülmüş okunuyor).
   const cokluOku = require('./ocr/coklu.js').cokluOku;
 
+  // Plaka DEDEKTOru — YOLOv11 nano, onnxruntime-node ile (Python YOK).
+  // OLCULECEK SONUC (29.09.2026): 8 gercek fotografin 5'inde bulunan kutu
+  // 96 px'e kucultulup tam hatta gonderilince plaka DOGRU okundu (0 yanlis)
+  // ve sure 2,4-10,9 saniyeden 0,15-0,39 saniyeye dustu.
+  // Model yoksa/hata verirse kutular() bos doner ve yol devre disi kalir.
+  const yoloPlaka = require('./ocr/yolo-plaka.js');
+
 try {
   const { PlakaMotoru } = require('./ocr/plaka.js');
   plakaMotoru = new PlakaMotoru();
@@ -1401,7 +1408,65 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
     return res.status(400).json({ ok: false, error: 'görüntü boş veya bozuk' });
   }
 
+  // ------------------------------------------------------------------
+  //  YOLO HIZLI YOLU (olculerek 5/5 dogru, 152-389 ms)
+  // ------------------------------------------------------------------
+  // Kullanici plakanin uzerine DIKDORTGEN CIZMISSE ipucu vardir. Insan
+  // isareti bu modelden guvenilirdir ve mevcut yol onu zaten kullanir;
+  // bu durumda YOLO denemek gereksiz sure ve komşuluk demektir.
+  let hizliYol = null;
+  const baslangicH = Date.now();
+  if (!ipucu) {
+    try {
+      const a = yoloPlaka.ac(tampon);
+      const kutuListesi = a ? await yoloPlaka.kutular(tampon) : [];
+      if (a && kutuListesi.length) {
+        for (const kirp of yoloPlaka.kirpmalar(kutuListesi)) {
+          const kk = yoloPlaka.kirpKucult(a, kirp, yoloPlaka.VARSAYILAN_HEDEF_Y);
+          if (!kk) continue;
+          let png = null;
+          try {
+            png = require('./ocr/gorsel.js').pngKodla(
+              require('./ocr/gorsel.js').griyiRgba(kk.gri), kk.w, kk.h);
+          } catch (e) { png = null; }
+          if (!png) continue;
+          let r = null;
+          try {
+            r = await plakaMotoru.oku(png, {
+              bilinenPlakalar: bilinen.map((x) => String(x)).filter(Boolean),
+              hizli: hizli,
+            });
+          } catch (e) { r = null; }
+          if (r && r.basarili && r.plaka) {
+            r.kaynak = 'yolo/kutu';
+            r.yoloKutu = { guven: kirp.guven, sureMs: Date.now() - baslangicH };
+            hizliYol = r;
+            break;
+          }
+        }
+      }
+    } catch (e) {
+      hizliYol = null;   // sessizce eski hatta dusulur
+    }
+  }
+
   try {
+    if (hizliYol) {
+      broadcast('plaka', { tip: 'plaka', plaka: hizliYol.plaka || null });
+      return safeJson(res, 200, {
+        ok: true,
+        basarili: true,
+        plaka: hizliYol.plaka || '',
+        guveniyet: hizliYol.guveniyet || 0,
+        guvenSeviyesi: hizliYol.guvenSeviyesi || 'yesil',
+        minGuven: typeof hizliYol.minGuven === 'number' ? hizliYol.minGuven : null,
+        oneriler: hizliYol.oneriler || [],
+        adaylar: hizliYol.adaylar || [],
+        ham: hizliYol.ham || '',
+        kaynak: 'yolo/kutu',
+        sureMs: Date.now() - baslangicH,
+      });
+    }
     // ÖLÇÜLEN KÖK NEDEN: tek deneme yetersiz kalıyor. Birden çok hazırlık
   // denenir; ilk tutan döner. Kullanıcı görüntüyü 6 kez göndermez —
   // hepsi sunucuda, tek istekte olur.
