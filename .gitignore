@@ -54,3 +54,7 @@ site/
 # Gercek plaka fotografi (kullanicidan geldi). Depo herkese acik: plaka
 # gorseli koyulmaz. Test gorselleri tests/fixtures/ altindadir.
 plaka.jpg
+
+# Olcum betiklerinin URETtigi gecici gorseller (uretilir, depoya girmez)
+tests/ara/qr-olc/
+tests/ara/plaka-olc/

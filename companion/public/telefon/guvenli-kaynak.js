@@ -1,67 +1,69 @@
 /**
  * ============================================================================
- *  GÜVENLİ KAYNAK NOTU — eylem İSTEMEYEN bilgilendirme
+ *  GÜVENLİ KAYNAK TESPİTİ — ARAYÜZ YOK
  * ============================================================================
+ *  BU DOSYA ÖNCE MAVİ BİR BANT GÖSTERİYORDU. KALDIRILDI.
  *
- *  ÖLÇÜLEN HATA (kullanıcı bildirimi, ÜRÜN KARARINI DEĞİŞTİRDİ):
- *  "Telefona sertifika indirmek ile olacak iş değil, bu çok saçma ve kötü bir
- *   yöntem, müşterilerimizi uğraştırmamamız gerekiyor."
+ *  ÖLÇÜLEN HATA (kullanıcı bildirimi, 29.09.2026): ekran görüntüsünde
+ *  sayfanın altındaki mavi şerit:
+ *    "Kamera, telefonun kendi kamerasıyla çekilir — her plaka için bir kez
+ *     dokunmanız yeterli. Güvenli adres (https) yalnızca uygulama içinde
+ *     canlı önizleme ekranı içindir; gerekli değildir."
+ *  Kullanıcının isteği: "şu mavi yazıyı kaldır, navigasyonu kapatıyor,
+ *  ona gerek yok."
  *
- *  Önceki sürümün hatasi tam olarak buydu: kullanıcıdan sertifika indirmesini,
- *  profili kurmasını ve ayarlardan "tam güven" vermesini istiyordu. Yani güvenlik
- *  nöbetçisinden sertifika yönetimi bekliyordu. Bu kabul edilemez.
+ *  Haklı: bant `position:fixed; bottom:0` ile ekranın altına yapışıyordu ve
+ *  alt gezinme çubuğunun (Bağlantı yok / Plan / Plaka / Kayıt / Ayarlar)
+ *  ÜSTÜNE biniyordu. Kullanıcı sekmelere basamıyordu.
  *
- *  Şimdi ne oluyor:
- *  - Düz http adresinde canlı önizleme olmaz (tarayıcı güvenlik kuralı).
- *  - AMA plaka okuma ÇALIŞIR: telefonun kendi kamerası (capture="environment")
- *    güvenli kaynak istemez. Bkz. yerel-kamera.js.
- *  - Dolayısıyla kullanıcının YAPMASI GEREKEN HİÇBİR ŞEY YOKTUR.
+ *  ÖNCEKİ KARARIN GÜÇLÜ YANLARI (silinmiyor, çünkü doğruydu):
+ *   - Sertifika indirme, profil kurma, "tam güven" istemiyoruz.
+ *   - Düz http'de canlı önizleme olmaz ama plaka okuma ÇALIŞIR
+ *     (telefonun kendi kamerası, capture="environment").
+ *   Bu yüzden bilgilendirmeye ihtiyaç yok: kullanıcı hiçbir şey yapmıyor.
+ *  Bu bilgi artık AYARLAR ekranındaki "Telefonun kamerası" satırında
+ *  duruyor; oraya gitmek isteyen oraya gider, her açılışta değil.
  *
- *  Bu dosya artık yalnızca kısa ve sakin bir bilgi gösterir. Sertifika
- *  indirme bağlantısı, "yapmanız gerekir" dili, uyarı rengi — hepsi kaldırıldı.
- *  Bir kontrol (anahtar/sertifika) kullanıcıya gösterilmez.
+ *  Burada kalan: güvenli kaynak TESPİTİ. Başka kod bunu kullanabilir
+ *  (ör. sürekli mod yalnızca güvenli kaynakta çalışır). Tespit doğru
+ *  çalışmaya devam eder; yalnızca ekrana bir şey basılmaz.
  * ============================================================================
  */
 (function () {
   'use strict';
 
   var CKGuvenliKaynak = {
-    guvenli: null,        // null = henüz bilinmiyor
-    notGosterildi: false,
+    guvenli: null,          // null = henüz bilinmiyor
+    // notGosterildi alanı kaldırıldı: artık hiçbir arayüz gösterilmiyor.
+    // Alanı silmek yerine bırakıyoruz ki olası eski okuyucular hata almasın.
+    notGosterildi: true,
   };
   window.CKGuvenliKaynak = CKGuvenliKaynak;
 
+  /**
+   * Sayfa güvenli kaynakta mı? (canlı önizleme için gerekir)
+   * Plaka okuma için GEREKMEZ — telefonun kendi kamerası yeterlidir.
+   */
   function guvenliMi() {
     if (typeof window.isSecureContext === 'boolean') return window.isSecureContext;
     return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
   }
 
+  /**
+   * ÖLÇÜLEN DÜZELTME: burada bir <div> oluşturulup sayfaya ekleniyordu.
+   * Kullanıcı şerbi altındaki sekmelere basamadı. Artık hiçbir arayüz
+   * öğesi oluşturulmaz. Fonksiyon adı korunuyor ki olası çağıranlar
+   * sessizce "gösterdim" sanmasın diye... hayır: burası BİLEREK boş bir
+   * fonksiyondur ve nedenini yazdım.
+   */
   function notGoster() {
-    if (CKGuvenliKaynak.notGosterildi) return;
-    CKGuvenliKaynak.notGosterildi = true;
-
-    var el = document.getElementById('ck-kaynak-notu');
-    if (el) return;
-    el = document.createElement('div');
-    el.id = 'ck-kaynak-notu';
-    // Satır içi stil: uygulamanın CSS'i yüklenmemiş olsa da görünür.
-    // Bilgi tonu (uyarı değil): çünkü çalışma ETKİLENMİYOR.
-    el.setAttribute('style', [
-      'position:fixed', 'bottom:0', 'left:0', 'right:0', 'z-index:2147482000',
-      'background:#123a5e', 'color:#eaf3ff', 'padding:9px 14px',
-      'font:13px/1.5 system-ui,-apple-system,Segoe UI,sans-serif',
-      'box-shadow:0 -2px 10px rgba(0,0,0,.25)'
-    ].join(';'));
-    el.innerHTML = 'Kamera, telefonun kendi kamerasıyla çekilir — '
-      + 'her plaka için bir kez dokunmanız yeterli. '
-      + 'Güvenli adres (https) yalnızca uygulama içinde <b>canlı önizleme</b> '
-      + 'ekranı içindir; <b>gerekli değildir</b>.';
-
-    if (document.body) document.body.appendChild(el);
+    // BİLEREK BOŞ — mavi bant kaldırıldı (29.09.2026, kullanıcı isteği).
+    // Gerekçe yukarıda. Ekrana hiçbir öğye basılmaz.
   }
 
   function baslat() {
     CKGuvenliKaynak.guvenli = guvenliMi();
+    // Ölçüm: burada hiçbir arayüz öğesi oluşturulmuyor.
     if (!CKGuvenliKaynak.guvenli) notGoster();
   }
 

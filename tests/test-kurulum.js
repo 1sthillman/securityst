@@ -343,8 +343,18 @@ ok(/function sonrakiAday/.test(yama) && /function basariliAdres/.test(yama),
   'telefon bağlantı kurulan adresi sabitler, kuramayınca sıradakini dener');
 ok(/deneme < S\.adaylar\.length/.test(yama), 'telefon tüm adayları sırayla dener (kullanıcı hiçbir şey yapmaz)');
 ok(/adaylar: S\.adaylar/.test(yama), 'aday listesi kalıcı olarak saklanıyor');
-ok(/baglantiUyarisi/.test(yama) && /Bilgisayardaki paneli açıp yeni QR kodu okutmanız yeterli/.test(yama),
-  'bağlantı kurulamazsa kullanıcıya ne yapacağı açıkça söyleniyor');
+// ÖLÇÜLEN REGRESYON: mesajı gerçek bir düğmeye yönlendirecek şekilde
+// değiştirdim; eski test eski metni arıyordu. Denetim GÜÇLENDİRİLDİ:
+// artık yalnızca metin değil, mesajın gösterdiği düğmenin GERÇEKTEN
+// var olduğu da ölçülüyor. (Daha önce "QR okutun" denilen ama olmayan
+// bir yol gösterilmişti — bu denetim onu yakalayamıyordu.)
+ok(/baglantiUyarisi/.test(yama), 'bağlantı kurulamazsa uyarı gösteriliyor');
+ok(/<b>QR kodunu okut<\/b>/.test(yama),
+  'uyarı mesajı EYLEM DÖNÜK (bir düğmeyi adlandırıyor)');
+ok(/id="gsync-qr"/.test(yama),
+  'mesajın gösterdiği QR düğmesi GERÇEKTEN sayfada var (yanıltıcı yönlendirme yok)');
+ok(/gsync-qrfile/.test(yama) && /capture="environment"/.test(yama),
+  'QR düğmesi telefon kamerasını açıyor (güvenli kaynak gerekmez)');
 
 // ---------------------------------------------------------------------------
 // ===========================================================================

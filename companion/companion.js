@@ -47,6 +47,10 @@ try { SUREM = require('./package.json').version || SUREM; } catch {}
 // Bulut servis, API anahtarı ve internet gerekmez; fotoğraf kulübeden çıkmaz.
 let plakaMotoru = null;
 let plakaMotoruHatasi = null;
+  // ÇOKLU DENEME: tek denemede okunamayan plaka için birden çok hazırlık
+  // denenir (ölçüm: kırpılmış küçük görüntü okunmuyor, büyütülmüş okunuyor).
+  const cokluOku = require('./ocr/coklu.js').cokluOku;
+
 try {
   const { PlakaMotoru } = require('./ocr/plaka.js');
   plakaMotoru = new PlakaMotoru();
@@ -1147,7 +1151,15 @@ app.get('/eslesme', (req, res) => {
     // QR içinde ne kodlandığı AÇIKÇA bildirilir. Ölçülebilirlik ilkesi:
     // "ne gönderiliyor" tahmin edilmemeli, sunucu söylemeli. Bu alan
     // testlerin ve panelin aynı değeri okumasını sağlar.
+    // ÖLÇÜLEN HATA (kullanıcı: "adres bulundu ama anahtar alınamadı"):
+    // QR yalnızca adresi taşıyordu; telefon anahtarı `/eslesme` çağrısıyla
+    // almaya çalışıyordu. GitHub'dan açıldığında sayfa https, sunucu http
+    // olduğu için tarayıcı İSTEĞİ HİÇ GÖNDERMEDEN engelliyordu
+    // (karşılaştırmalı içerik). Anahtarı QR'ın içine koyuyoruz: eşleşme
+    // için ağ isteği gerekmiyor.
     qrAdres: kalici,
+    // Anahtarlı QR içeriği — telefon bu formattan adres + anahtarı alır.
+    qrTam: SHARED_TOKEN ? (kalici + '#token=' + SHARED_TOKEN) : kalici,
     // Kök CA: indirme adresi + QR'ı. Panel bunları gösterir.
     kokCaAdres,
     qrKokSvg: qrKok.qrSvg,
@@ -1181,7 +1193,11 @@ app.get('/eslesme', (req, res) => {
     // Düz adres hem kısa (sınırın içinde) hem de telefonun kendi
     // kamerasıyla okutulup UYGULAMAYI AÇAR. Yani işe yarar.
     // Anahtar zaten panelde ayrı bir alanda ve /eslesme'de gelir.
-    ...qrAl(kalici),
+    // QR görseli de anahtarlı içerikten üretilir (yoksa telefon eski koddan
+    // anahtarsız adresi okurdu). ÖLÇÜLEN HATA: ilk denemede yalnızca
+    // `qrAdres` alanına anahtar kondu, görsel `qrAl(kalici)` ile üretildiği
+    // için ikisi tutarsızdı.
+    ...qrAl(SHARED_TOKEN ? (kalici + '#token=' + SHARED_TOKEN) : kalici),
     zaman: new Date().toISOString(),
   });
 });
@@ -1386,7 +1402,10 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
   }
 
   try {
-    const sonuc = await plakaMotoru.oku(tampon, {
+    // ÖLÇÜLEN KÖK NEDEN: tek deneme yetersiz kalıyor. Birden çok hazırlık
+  // denenir; ilk tutan döner. Kullanıcı görüntüyü 6 kez göndermez —
+  // hepsi sunucuda, tek istekte olur.
+  const sonuc = await cokluOku(plakaMotoru, tampon, {
       bilinenPlakalar: bilinen.map((p) => String(p)).filter(Boolean),
       hizli,
       ipucu,

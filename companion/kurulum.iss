@@ -159,6 +159,12 @@ Source: "ocr\bolge.js";  DestDir: "{app}\app\ocr"; Flags: ignoreversion
 ; --- fast-plate-ocr hattı (varsayılan motor) ---
 Source: "ocr\turk-plaka.js"; DestDir: "{app}\app\ocr"; Flags: ignoreversion
 Source: "ocr\plaka-fpo.js"; DestDir: "{app}\app\ocr"; Flags: ignoreversion
+; --- Çoklu deneme (2026-09-29) ---
+; companion.js `require("./ocr/coklu.js")` yapıyor. ÖLÇÜLEN HATA: bu dosya
+; paketlenmediği için KURULU sürümde servis MODULE_NOT_FOUND ile düşüyordu
+; (geliştirmede çalışır, müşterinin bilgisayarında bozulur). test-kurulum.js
+; paket bütünlüğünü sınıyor — dosya burada olmazsa test düşüyor.
+Source: "ocr\coklu.js";    DestDir: "{app}\app\ocr"; Flags: ignoreversion
 Source: "ocr\hat-fpo.js";   DestDir: "{app}\app\ocr"; Flags: ignoreversion
 ; Model dosyaları + config + SHA-256 özet dosyaları. Özet, kurulumda bozuk
 ; kopyalamayı yakalar (model sessizce değişmişse okuma tamamen yanlış olur).

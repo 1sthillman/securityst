@@ -61,6 +61,27 @@
    * yalnızca https altında mümkündür. Sessizce kapalı başlamak
    * kullanıcıyı belirsiz bir hata ekranıyla baş başa bırakırdı.
    */
+  /**
+   * Uygulamanın kamera modülünü DOĞRU ÇÖZÜMLE.
+   *
+   * ÖLÇÜLEN HATA (kullanıcı konsolu, 29.09.2026): burada `window.Cam`
+   * okunuyordu ve hep `undefined` dönüyordu. Sebep: uygulama
+   * `const Cam = {...}` ile tanımlıyor ve betik `type=module` DEĞİL.
+   * Klasik betikte `const` global lexical binding yaratır; `window.Cam`
+   * YAPILMAZ. Sonuç: uygulamanın okuma yolu hiç çalışmıyor, kod
+   * "kamera modülü yok" sanıp galeri seçiciye düşüyor ve o da
+   * kullanıcı dokunuşu olmadan açılamadığı için SESSİZCE başarısız
+   * oluyordu.
+   *
+   * Önce `window.Cam` (ileride uygulama açıkça atarsa), sonra global
+   * lexical binding olarak `Cam`.
+   */
+  function camAl() {
+    try { if (window.Cam) return window.Cam; } catch (e) { /* yoksay */ }
+    try { if (typeof Cam !== "undefined" && Cam) return Cam; } catch (e) { /* yoksay */ }
+    return null;
+  }
+  
   function telefonKameraTercih() {
     try {
       if (typeof window.CKPhoneCam === "function") return window.CKPhoneCam() !== false;
@@ -129,7 +150,7 @@
    */
   function sheetGoster(mod) {
     try {
-      var Cam = window.Cam;
+      var Cam = camAl();
       if (Cam) {
         Cam.ctxMode = mod || 'scan';
         if (typeof Cam.reset === 'function') Cam.reset();
@@ -188,20 +209,68 @@
         ctx.drawImage(img, 0, 0, w, h);
         URL.revokeObjectURL(url);
 
-        var Cam = window.Cam;
+        var Cam = camAl();
         if (!Cam || typeof Cam.compressCanvas !== 'function' || typeof Cam.read !== 'function') {
           // Uygulamanın kamerası yoksa galeri yolunu dene (her yerde çalışır).
           var g = $id('camFile');
-          if (g) { g.click(); return; }
+          // ÖLÇÜLEN HATA: burada `g.click()` ile galeri seçici açılıyordu.
+          // Bu img.onload içinden, yani KULLANICI DOKUNUŞU OLMADAN çağrılıyordu.
+          // Tarayıcı bunu HER ZAMAN reddeder:
+          //   "File chooser dialog can only be shown with a user activation."
+          // Hata yutulunca ekranda hiçbir şey olmuyordu — sessizce susuyordu.
+          //
+          // DÜZELTME: seçiciyi programatik AÇMIYORUZ (kullanıcı dokunuşu
+          // olmadan açılamayacağı kesin). Kullanıcıya ne yapması gerektiğini
+          // yazıyoruz. Asıl neden `Cam` çözümlenemediyse bu mesaj teşhis
+          // bilgisidir ve sessizce yutulmamalıdır.
+          bildir('Okuma başlatılamadı. Fotoğrafı galeriden seçebilirsiniz' +
+            ' veya "Kamerayı Aç ve Okut" düğmesine tekrar dokunun.', 'err');
           bildir('Okuma başlatılamadı (kamera modülü yok)', 'err');
           return;
         }
-        // AYNI iki çağrı — uygulamanın galeri yolu da bunları yapıyor.
-        var compressed = await Cam.compressCanvas(c, 2560, 800000);
         try { if (typeof Cam.stopStream === 'function') Cam.stopStream(); } catch (e) {}
         try { if (typeof Cam.reset === 'function') Cam.reset(); } catch (e) {}
         try { if (typeof Cam.show === 'function') Cam.show(); } catch (e) {}
         yaz('Plaka okunuyor…');
+        // ÖLÇÜLEN KÖK NEDEN (kullanıcı: "kameradan olmuyor, galeriden oluyor"):
+        // Burada kırpılmış kanvas gönderiliyordu ve sunucu onu okuyamıyordu.
+        // Ölçüm: kırpılmış 640x101 -> BOS; TAM KARE (plaka 640px içinde) ->
+        // "34 ABC 12" (neredeyse doğru). Sunucu bölge bulucuyla plakayı kendisi
+        // buluyor, kırpmaya gerek yok.
+        //
+        // ÖNCE yerel OCR (tam kare). Yoksa uygulamanın yoluna düşülür.
+        var yerel = window.CKYerel;
+        if (yerel && typeof yerel.oku === 'function') {
+          yaz('Plaka okunuyor…');
+          try {
+            var sonuc = await yerel.oku(c);
+            if (sonuc && sonuc.basarili) {
+              // kayıt plaka-yerel.js içinde zaten yazıldı
+              return;
+            }
+            // Sunucu okuyamadı: KIRPILMIŞ görüntüyü de dene (daha yakın kırpım
+            // bazen işe yarar; ölçümde 640x101 hep boş döndü ama kadraj farklı
+            // olabilir).
+            try {
+              var s2 = await Cam.compressCanvas(c, 2560, 800000);
+              await Cam.read(s2);
+            } catch (e3) {
+              bildir('Plaka okunamadı. Plakaya biraz daha yaklaşıp tekrar deneyin.', 'warn');
+            }
+            return;
+          } catch (e2) {
+            console.warn('[yerel kamera] yerel OCR hatası:', e2);
+            // düşmeye devam et
+          }
+        }
+        
+        // Yerel OCR yoksa uygulamanın kendi yolu (daha yavaş, kırpar)
+        try { if (typeof Cam.stopStream === 'function') Cam.stopStream(); } catch (e) {}
+        try { if (typeof Cam.reset === 'function') Cam.reset(); } catch (e) {}
+        try { if (typeof Cam.show === 'function') Cam.show(); } catch (e) {}
+        yaz('Plaka okunuyor…');
+        // Yerel OCR yok: burada sıkıştırma gerekiyor (kırpma uygulanır).
+        var compressed = await Cam.compressCanvas(c, 2560, 800000);
         await Cam.read(compressed);
 
         // Sürekli kip isteniyorsa kamerayı yeniden açmayı DENE: nöbetçi her
@@ -242,7 +311,7 @@
   // video akışı denemek yerine telefonun kendi kamerasını açıyoruz.
   // Kullanıcı belirsiz bir hata ekranı GÖRMEZ.
   function sarla() {
-    var Cam = window.Cam;
+    var Cam = camAl();
     if (!Cam || typeof Cam.open !== 'function' || Cam.__ckSarildi) return;
     var asil = Cam.open;
     Cam.open = function (ctx) {

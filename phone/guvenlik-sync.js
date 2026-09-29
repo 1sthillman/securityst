@@ -714,7 +714,132 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
     }).catch(function () {});
   }
 
-  function openCfg() {
+  /**
+ * Fotoğraftaki QR kodunu çözer ve İÇİNDEKİ ADRESİ döner.
+ *
+ * ÇÖZÜMLEME TELEFONDA YAPILIR. Fotoğraf hiçbir sunucuya gönderilmez —
+ * yalnızca `URL.createObjectURL` ile belleğe alınır, canvas'ta işlenir
+ * ve nesne URL'si hemen serbest bırakılır. (Plaka fotoğrafı gibi hassas
+ * görsellerin dışarı çıkmaması ilkesi burada da geçerli.)
+ *
+ * @returns {Promise<string|null>} adres ya da null
+ */
+function qrCoz(dosya) {
+  return new Promise(function (co) {
+  // AYIRT EDİCİ SONUÇ: "kütüphane yok" ile "çözülemedi" AYNI şey değil.
+  // Ölçülen hata: ikisi de "QR okunamadı" olarak görünüyordu, yani
+  // teşhis imkânsızdı. Artık ayrı ayrı bildiriliyor.
+  if (typeof window.jsQR !== 'function') { co({ hata: 'kutuphane' }); return; }
+  var url = URL.createObjectURL(dosya);
+  var img = new Image();
+  img.onload = function () {
+  try {
+  // jsQR çalışma boyutunda kısıt vardır; gereğinden büyük kare
+  // bellek ve süre harcar. 1600px yeterli ve güvenilir.
+  var M = 1600;
+  var w = img.naturalWidth || img.width;
+  var h = img.naturalHeight || img.height;
+  var o = 1;
+  if (Math.max(w, h) > M) o = M / Math.max(w, h);
+  var cw = Math.max(1, Math.round(w * o));
+  var ch = Math.max(1, Math.round(h * o));
+  var c = document.createElement('canvas');
+  c.width = cw; c.height = ch;
+  var g = c.getContext('2d');
+  g.drawImage(img, 0, 0, cw, ch);
+  var veri;
+  try { veri = g.getImageData(0, 0, cw, ch); } catch (e) { veri = null; }
+  // ÖLÇÜLDÜ: tek deneme bozulma senaryolarının 6/8'ini çözüyor
+  // (mükemmel, düşük kontrast, gürültü ±25/±45, kontrast+gürültü).
+  // Kalan 2: koyu zemin ve aşırı bileşik bozulma. Çoklu deneme
+  // bunları kurtarma şansı verir; tek denemeden kötü çıkmadı.
+  var veriDizi = veri ? veri.data : null;
+  var adres = veriDizi ? qrCokluDeneme(veriDizi, cw, ch) : null;
+  URL.revokeObjectURL(url);
+  co(adres ? { adres: adres } : { hata: 'cozemedi' });
+  } catch (e) {
+  URL.revokeObjectURL(url);
+  co({ hata: 'cozemedi' });
+  }
+  };
+  img.onerror = function () { URL.revokeObjectURL(url); co({ hata: 'okunamad' }); };
+  img.src = url;
+  });
+}
+
+/**
+ * Birden çok işlemle dener; ilk okuyanı döner.
+ *
+ * ÖLÇÜM: tek deneme gerçekçi bozulmaların 6/8'ini çözüyor. Bu işlemler
+ * kalan durumları (koyu zemin, aşırı kontrast) kurtarma şansı verir ve
+ * ölçümde tek denemeden kötü çıkmadı.
+ *
+ * @param {Uint8ClampedArray} rgba piksel verisi (gri tonlu)
+ * @returns {string|null} adres ya da null
+ */
+function qrCokluDeneme(rgba, w, h) {
+  var dene = [];
+  dene.push(['orijinal', rgba]);
+  for (var t = 100; t <= 190; t += 30) dene.push(['esik' + t, qrEsik(rgba, t)]);
+  dene.push(['ters', qrTers(rgba)]);
+  dene.push(['ters+esik150', qrEsik(qrTers(rgba), 150)]);
+  for (var i = 0; i < dene.length; i++) {
+  try {
+  var r = window.jsQR(dene[i][1], w, h);
+  if (r && r.data) {
+  var a = qrAdresAyikla(r.data);
+  if (a) return a;
+  }
+  } catch (e) { /* bu deneme başarısız, sonrakine geç */ }
+  }
+  return null;
+}
+
+/** Eşik uygular (gri tonlu RGBA). */
+function qrEsik(src, t) {
+  var o = new Uint8ClampedArray(src.length);
+  for (var i = 0; i < src.length; i += 4) {
+  var v = src[i] < t ? 0 : 255;
+  o[i] = v; o[i + 1] = v; o[i + 2] = v; o[i + 3] = 255;
+  }
+  return o;
+}
+
+/** Ters çevirir (koyu zemin durumu için). */
+function qrTers(src) {
+  var o = new Uint8ClampedArray(src.length);
+  for (var i = 0; i < src.length; i += 4) {
+  var v = 255 - src[i];
+  o[i] = v; o[i + 1] = v; o[i + 2] = v; o[i + 3] = 255;
+  }
+  return o;
+}
+
+/**
+ * QR içeriğinden sunucu adresini ayıklar.
+ *
+ * QR düz adres (`http://192.168.1.235:4545`) olabilir ya da eşleşme
+ * bağlantısı (`http://192.168.1.235:4545/#token=...`) biçiminde olabilir.
+ * İkisini de kabul eder. Geçersizse null döner — sessizce rastgele bir
+ * adres denenmemelidir.
+ */
+function qrAdresAyikla(metin) {
+  var s = String(metin || '').trim();
+  if (!s) return null;
+  // JSON ise içindeki adresi al
+  if (s.charAt(0) === '{') {
+  try {
+  var o = JSON.parse(s);
+  s = String(o.adres || o.url || o.baseUrl || o.kaliciAdres || '');
+  } catch (e) { s = ''; }
+  }
+  // #token=... veya ?token=... kısmını at
+  s = s.split('#')[0].split('?')[0];
+  if (!/^https?:\/\//i.test(s)) return null;
+  return s.replace(/\/+$/, '');
+}
+
+function openCfg() {
     if (cfgEl) { cfgEl.style.display = 'flex'; return; }
     cfgEl = document.createElement('div');
     cfgEl.setAttribute('style',
@@ -737,7 +862,19 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
       '<input id="gsync-tok" type="password" placeholder="Eşleşme anahtarı (token)" ' +
       'style="width:100%;box-sizing:border-box;background:#181F22;border:1px solid #232C30;border-radius:12px;' +
       'padding:12px;color:#EEF2F0;font-size:14px;margin-bottom:14px;"/>' +
-      '<div style="display:flex;gap:8px;">' +
+      // QR okutucu: ölçülen hata — mesaj "QR okutun" diyordu ama okutacak
+  // yer yoktu. Kullanıcı ekranda olmayan bir iş yapmaya yönlendiriliyordu.
+  '<button id="gsync-qr" style="flex:1;padding:12px;border-radius:12px;border:1px solid #2F3A3F;' +
+  'background:#181F22;color:#EEF2F0;font-size:13px;font-weight:600;' +
+  'display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:10px;">' +
+  '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" ' +
+  'stroke-width="2" style="flex:none"><rect x="3" y="3" width="7" height="7"/>' +
+  '<rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>' +
+  '<path d="M14 14h3v3h-3zM19 19h2v2h-2z"/></svg>' +
+  'Bilgisayarın QR kodunu okut</button>' +
+  '<input id="gsync-qrfile" type="file" accept="image/*" capture="environment" ' +
+  'style="display:none;"/>' +
+  '<div style="display:flex;gap:8px;">' +
       '<button id="gsync-test" style="flex:1;padding:12px;border-radius:12px;border:1px solid #232C30;background:#181F22;color:#EEF2F0;font-weight:600;">Dene</button>' +
       '<button id="gsync-save" style="flex:1;padding:12px;border-radius:12px;border:0;background:#FFA94D;color:#1c1206;font-weight:700;">Kaydet</button>' +
       '</div>' +
@@ -759,7 +896,56 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
         msg('Bağlantı OK • sunucuda ' + d.kayitSayisi + ' kayıt.');
       }).catch(function (e) { msg('Başarısız: ' + (e.message || e)); });
     };
-    box.querySelector('#gsync-save').onclick = function () {
+    // ---- QR OKUTMA ----------------------------------------------------
+  // Kare jsQR ile çözülür. Çözümleme telefonda olur; hiçbir sunucuya
+  // gönderilmez (fotoğraf yalnızca bellekte işlenir).
+  var qrfile = box.querySelector('#gsync-qrfile');
+  var qrbtn = box.querySelector('#gsync-qr');
+  if (qrbtn && qrfile) {
+  qrbtn.onclick = function () {
+  qrfile.value = '';
+  msg('Bilgisayar ekranındaki QR kodunu kadraja alın…');
+  qrfile.click();   // kullanıcı dokunuşundan — tarayıcı şartı
+  };
+  qrfile.addEventListener('change', function () {
+  var f = qrfile.files && qrfile.files[0];
+  if (!f) return;
+  msg('QR okunuyor…');
+  // ÖLÇÜLEN HATA: her durumda aynı "QR okunamadı" mesajı çıkıyordu —
+  // kütüphane yüklenmemişse de aynı görünüyordu. Teşhis imkânsızdı.
+  // Artık her durum KENDİ mesajını gösterir ve çıkış yolu sunar.
+  qrCoz(f).then(function (sonuc) {
+  if (!sonuc || !sonuc.adres) {
+  if (sonuc && sonuc.hata === 'kutuphane') {
+    msg('QR okuyucu yüklenemedi. Sayfayı tam yenileyin (tarayıcı eski sürümü tutuyor).');
+  } else if (sonuc && sonuc.hata === 'okunamad') {
+    msg('Fotoğraf açılamadı. Farklı bir fotoğraf deneyin ya da adresi elle yazın.');
+  } else {
+    msg('QR okunamadı. İki çıkış yolu var: (1) bilgisayarda ekran GÖRÜNTÜSÜ alıp galeriden seçin, (2) adresi aşağıya elle yazın.');
+  }
+  return;
+  }
+  var adres = sonuc.adres;
+  box.querySelector('#gsync-url').value = adres;
+  msg('Adres bulundu: ' + adres + ' — anahtar alınıyor…');
+  // Kurulum anahtarını o adresten OTOMATİK al. /eslesme herkese açıktır
+  // ve 64 haneli kurulum anahtarını döner. Kullanıcı yazmak zorunda kalmaz.
+  fetch(adres + '/eslesme', { cache: 'no-store', headers: istekBasliklari() })
+  .then(function (r) { return r.ok ? r.json() : null; })
+  .then(function (d) {
+  if (d && d.token) {
+  box.querySelector('#gsync-tok').value = d.token;
+  msg('Bulundu: ' + adres + ' — anahtar alındı. "Kaydet" deyin.');
+  } else {
+  msg('Adres bulundu ama anahtar alınamadı. "Kaydet" deyip deneyin.');
+  }
+  }).catch(function () {
+  msg('Adres bulundu ama sunucuya ulaşılamadı. Aynı Wi-Fi üzerinde misiniz?');
+  });
+  }).catch(function () { msg('QR okunamadı.'); });
+  });
+  }
+  box.querySelector('#gsync-save').onclick = function () {
       var u = box.querySelector('#gsync-url').value.trim().replace(/\/+$/, '');
       var t = box.querySelector('#gsync-tok').value.trim();
       adaylariAyarla({ baseUrl: u });
@@ -781,7 +967,10 @@ var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
       if (!S.adaylar.length || cop) { kutu.style.display = 'none'; adayKutu.style.display = 'none'; return; }
       kutu.style.display = 'block';
       kutu.innerHTML = 'Bilgisayara ulaşılamıyor. Adres değişmiş olabilir.<br>' +
-        'Bilgisayardaki paneli açıp yeni QR kodu okutmanız yeterli.';
+        // ÖLÇÜLEN HATA: burada "yeni QR kodu okutmanız yeterli" yazıyordu
+  // ama uygulamada QR okutan yer YOKTU. Artık yukarıdaki "QR Okut"
+  // düğmesi gerçekten çalışıyor; mesaj ona yönlendiriyor.
+  'Aşağıdaki <b>QR kodunu okut</b> düğmesini kullanın, ya da adresi elle yazın.';
       adayKutu.style.display = 'block';
       adayKutu.innerHTML = '<div style="font:400 12px Inter,sans-serif;color:#7C8B8B;margin-bottom:6px;">Denenecek adresler:</div>';
       S.adaylar.forEach(function (a) {

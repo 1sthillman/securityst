@@ -233,6 +233,9 @@ function donustur(icerik) {
     '  <!-- Yayın yapılandırması: sunucu adresi + anahtar. LAN kurulumunda' +
     '       boştur ve uygulama aynı kökende çalışır. -->\n' +
     '  <script src="yapilandirma.js"></script>\n' +
+    '  <!-- QR okutucu (jsQR, MIT). Kulübede internet olmasa da' +
+    '       çalışır: kütüphane yereldir, dış servise gitmez. -->\n' +
+    '  <script src="vendor/jsQR.min.js"></script>\n' +
     '  <script src="yerel-kamera.js"></script>\n' +
     '  <!-- Güvenli kaynak uyarısı (KAMERA ÖN KOSULU). Tarayıcı kamerayı\n' +
     '       yalnızca https altında açar; http adresinde kullanıcı belirsiz bir\n' +
