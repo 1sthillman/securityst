@@ -995,7 +995,13 @@ class PlakaMotoru {
     // çıktısı binlerce rastgele karakter). Kısa bütçe nöbetçiyi 10 saniye
     // bekletmekten kurtarır ve telefonu erkenden uyarır.
     if (!Number.isFinite(varsayilanButce)) {
-      butceSn = bolgeler.length === 0 ? 2.5 : 4;
+      // ÖLÇÜLEN HATA: tam kare artık HER ZAMAN denendiği için (aşağıda
+      // "tur: tam") bölge bulunduğu durumda bütçe 4 sn idi ve tam kareye
+      // zaman KALMIYORDU. Gerçek fotoğraflarda 4 bölge denendi (bolge=4,
+      // bolge=12, bolge=16) ve hepsi boş döndükten sonra tam kare için
+      // süre kalmadığı için sonuç yine "plaka-bulunamadi" oldu.
+      // Bütçe artık denenecek iş sayısına göre ölçekleniyor.
+      butceSn = bolgeler.length === 0 ? 2.5 : (bolgeler.length > 8 ? 7 : 4.5);
     }
 
     // Çalışma listesi: bulunan bölgeler (iyi puandan başla) + TAM KARE.
@@ -1045,8 +1051,19 @@ class PlakaMotoru {
       }
     }
     for (const b of bolgeler) isler.push({ ...b, tur: 'bolge' });
-    const tamKareGerekli = isler.length === 0;
-    if (tamKareGerekli) isler.push({ x: 0, y: 0, g, y2: y, tur: 'tam' });
+
+    // ÖLÇÜLEN HATA + KULLANICI TALEBİ (29.09.2026, 9 gerçek fotoğraf):
+    //   Eski kod tam kareyi YALNIZCA bölge bulunamadığında deniyordu:
+    //       const tamKareGerekli = isler.length === 0;
+    //   Gerçek fotoğraflarda bölge bulucu 2/12/16 aday buluyor ama
+    //   HİÇBİRİ okunabilir metin vermiyordu (kullanıcı konsolu):
+    //       bolge=4  neden=plaka-bulunamadi  ham okuma ""
+    //   "bölge var" sanıldığı için tam kare hiç denenmiyordu ve sonuç boş
+    //   dönüyordu. Önceki yorumdaki "tam kare işe yaramadı" ölçümü TEMİZ
+    //   sahnelerden alınmıştı; karmaşık/elde tutulan sahnelerde yapılmamıştı.
+    // ÇÖZÜM: tam kare HER ZAMAN denenir, ama EN SONDA — bölgeler önce
+    // denendiği için başarılı yolda ek maliyet olmaz.
+    isler.push({ x: 0, y: 0, g, y2: y, tur: 'tam' });
 
     const toplanan = [];
     const hamlar = [];

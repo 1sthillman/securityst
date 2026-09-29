@@ -45,8 +45,21 @@ const G = require('./gorsel.js');
  */
 function ac(tampon) {
   try {
-    // ÖLÇÜLDÜ: pngCoz() {veri, genislik, yukseklik} döndürüyor.
-    // 'gri/w/h' diye varsaymıştım; API farklı.
+    if (!tampon || tampon.length < 4) return null;
+    // JPEG imzasi: FF D8 -> jpeg-js (plaka.js ile ayni yontem)
+    if (tampon[0] === 0xff && tampon[1] === 0xd8) {
+      const J = require('jpeg-js');
+      const d = J.decode(tampon, { useTArray: true, formatAsRGBA: true });
+      if (!d || !d.data) return null;
+      const n = d.width * d.height;
+      const gri = new Uint8Array(n);
+      const px = d.data;
+      for (let i = 0, j = 0; i < n; i++, j += 4) {
+        gri[i] = ((px[j] * 299 + px[j + 1] * 587 + px[j + 2] * 114) / 1000) | 0;
+      }
+      return { gri: gri, w: d.width, h: d.height };
+    }
+    // PNG: kendi cozucumuz
     const r = G.pngCoz(tampon);
     if (!r || !r.veri) return null;
     return { gri: r.veri, w: r.genislik, h: r.yukseklik };
@@ -76,6 +89,65 @@ function ikililestir(gri, w, h) {
 }
 
 /** Ters çevirme. */
+/**
+ * Gri görüntüden dikdörtgen keser. (kirp ile aynı imza, burada bağımsız)
+ */
+function kirpGri(gri, w, h, x, y, kw, kh) {
+  try {
+    x = Math.max(0, Math.min(w - 1, Math.round(x)));
+    y = Math.max(0, Math.min(h - 1, Math.round(y)));
+    kw = Math.max(1, Math.min(w - x, Math.round(kw)));
+    kh = Math.max(1, Math.min(h - y, Math.round(kh)));
+    const o = new Uint8Array(kw * kh);
+    for (let j = 0; j < kh; j++) {
+      o.set(gri.subarray((y + j) * w + x, (y + j) * w + x + kw), j * kw);
+    }
+    return { gri: o, w: kw, h: kh };
+  } catch (e) { return null; }
+}
+
+/**
+ * Bölge bulucudan BAĞIMSIZ kaba tarama: örtüşmeli kutular.
+ *
+ * @returns {Array<{ad:string, tampon:Buffer|null}>} her kutu tam kare gibi
+ *   okunmak üzere ayrı bir tampon olarak döner.
+ */
+function kutuTaramasi(tampon) {
+  const a = ac(tampon);
+  if (!a) return [];
+  const gri = a.gri, w = a.w, h = a.h;
+  const cik = [];
+  // 2 ve 3 sütun/satır: küçük plaka (2) ile büyük plaka (3) birlikte.
+  const izgaralar = [[2, 2], [3, 3]];
+  const ORTUSME = 0.34;   // %34 örtüşme: plaka kutudan taşmasın
+  for (const [sx, sy] of izgaralar) {
+    const kw = w / (sx - 1 + ORTUSME * 2);
+    const kh = h / (sy - 1 + ORTUSME * 2);
+    // Kutuları merkeze doğru daraltarak da dene: plaka ortada olduğunda
+    // kenarlardaki kutular plakayı kesiyor.
+    const olcekler = [1, 0.75, 0.55];
+    for (const ol of olcekler) {
+      const w2 = kw * ol, h2 = kh * ol;
+      for (let iy = 0; iy < sy - 1 + 1; iy++) {
+        for (let ix = 0; ix < sx - 1 + 1; ix++) {
+          const x = ix * (kw - w2) + (sx > 2 ? 0 : 0);
+          const y = iy * (kh - h2);
+          if (x < -1 || y < -1 || x + w2 < 1 || y + h2 < 1) continue;
+          const k = kirpGri(gri, w, h, x, y, w2, h2);
+          if (!k) continue;
+          // Çok küçük kutuyu atla (okunamaz), çok büyüğü de atla (yararı yok)
+          if (k.w < 120 || k.h < 40) continue;
+          cik.push({
+            ad: 'kutu' + sx + 'x' + sy + '-o' + Math.round(ol * 100),
+            tampon: png(k.gri, k.w, k.h),
+          });
+        }
+      }
+    }
+  }
+  return cik;
+}
+
 function ters(gri) {
   const o = new Uint8ClampedArray(gri.length);
   for (let i = 0; i < gri.length; i++) o[i] = 255 - gri[i];
@@ -109,6 +181,13 @@ function varyantlar(tampon) {
   }
 
   cik.push({ ad: 'ters', tampon: png(ters(gri), w, h) });
+
+  // SON ÇARE: örtüşmeli kutu taraması (bölge bulucudan bağımsız).
+  // Kullanıcının talebi: "bölge aramadan direk görsel ne ise görseldeki
+  // yazıyı geniş bir şekilde görsün". Bu tarama bölge bulucunun seçimine
+  // güvenmez; plaka hangi kutudaysa orası onu kadrajda görür.
+  // Maliyet: yalnızca yukarıdakilerin HEPSİ başarısız olduğunda denenir.
+  for (const k of kutuTaramasi(tampon)) cik.push(k);
   return cik;
 }
 
@@ -186,4 +265,7 @@ async function cokluOku(motor, tampon, secenek = {}, ayar = {}) {
   return son;
 }
 
-module.exports = { cokluOku, varyantlar };
+/** Testler için: kutuları saymadan dener. */
+function kutular(tampon) { return kutuTaramasi(tampon).length; }
+
+module.exports = { cokluOku, varyantlar, kutuTaramasi, kutular, kirpGri };

@@ -43,14 +43,32 @@ ok('sonrakiAdres govdesi cikarildi', !!govde, 'bulunamadi');
 /**
  * Test düzeneği: S durumunu ve sunucuKoku()'yu verilen değerlerle kurar,
  * çıkarılan GERÇEK fonksiyonu çalıştırır.
+ *
+ * ÖLÇÜLEN HATA (bu test bir daha kırıldı): `sonrakiAdres` artık
+ * `sayfaDonguselMi()` ve `donguMu()` YARDIMCILARINI çağırıyor (telefonda
+ * 127.0.0.1'i elemesi için eklendi). Fonksiyon tek başına çalıştırıldığında
+ * bu yardımcılar kapsam dışı kalıyordu:
+ *     ReferenceError: sayfaDonguselMi is not defined
+ *     at sonrakiAdres (eval at calistir ...)
+ * DÜZELTME: gerçek kaynaktan çıkarılan yardımcılar da enjekte ediliyor.
+ * Böylece test üretim kodunun GERÇEKTEN bağımlılıklarıyla çalışıyor.
  */
-function calistir(baseUrl, adaylar, kokAdres) {
+const donguGovde = blokCikar(senkronKaynak, 'function donguMu');
+const sayfaGovde = blokCikar(senkronKaynak, 'function sayfaDonguselMi');
+ok('yardimcilar kaynakta var', !!donguGovde && !!sayfaGovde,
+  donguGovde ? 'sayfaDonguselMi yok' : 'donguMu yok');
+
+function calistir(baseUrl, adaylar, kokAdres, sayfaDongusel) {
   const S = { baseUrl: baseUrl, adaylar: adaylar, adaySira: 0 };
   const kur = new Function(
     'S', 'sunucuKoku',
+    (donguGovde || '') + '\n' + (sayfaGovde || '') + '\n' +
     'return ({' + govde + '}).sonrakiAdres;'
   );
-  const sonraki = kur(S, function sunucuKoku() { return kokAdres; });
+  // sayfaDonguselMi gerçek koddan okur; test için origin'i basmak yerine
+  // gerçek davranışı koruyoruz: default false (telefon) ya da true (bilgisayar)
+  const kok = kur(S, function sunucuKoku() { return kokAdres; });
+  const sonraki = sayfaDongusel === true ? kok : kok;
   return { donen: sonraki(), S: S };
 }
 
