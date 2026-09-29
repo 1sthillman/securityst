@@ -58,3 +58,13 @@ plaka.jpg
 # Olcum betiklerinin URETtigi gecici gorseller (uretilir, depoya girmez)
 tests/ara/qr-olc/
 tests/ara/plaka-olc/
+
+# MUSTERI FOTOGRAFLARI (plaka numaralari gizlidir, depo herkese acik)
+/plaka*.jpg
+/plaka*.jpeg
+/plaka*.png
+/PLAKA*.jpg
+/PLAKA*.jpeg
+/basarisiz*.jpg
+/basarisiz*.jpeg
+/plaka 4.jpg
