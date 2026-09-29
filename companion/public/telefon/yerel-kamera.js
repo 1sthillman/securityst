@@ -253,22 +253,21 @@
         var yerel = window.CKYerel;
         if (yerel && typeof yerel.oku === 'function') {
           yaz('Plaka okunuyor…');
+          // ÖLÇÜLEN KRİTİK HATA (kullanıcı: "kameradan okumuyor, hiçbir işe
+          // yaramıyor"): burada `yerel.oku(c)` DOĞRUDAN çağrılıyordu.
+          // `Cam.read` sarmalayıcısı (plaka-yerel.js `camiSar`) ATLANIYORDU;
+          // o sarmalayıcı okuma sonucunu EKRANA basıyor. Atlanınca plaka
+          // okunuyor ve kayıt yazılıyor ama EKRAN HİÇ GÜNCELLENMİYORDU.
+          // Tarayıcıda ölçüldü (telefon kamera yolu, gerçek dosya girişi):
+          //   camSheet : "show scanning"   ← ekran açıldı
+          //   camOut   : class="cam-out"   ← "show" YOK, display:none
+          //   camPlate : "—"
+          // Galeri yolu `Cam.read` kullandığı için EKRANDA GÖSTERİYORDU:
+          //   galeri → Cam.read → sarmalayıcı → deliver() → ekranda
+          //   kamera → yerel.oku → dönüş    → ekranda YOK
+          // DÜZELTME: sarmalayıcıdan geç; iki yol birebir aynı olsun.
           try {
-            var sonuc = await yerel.oku(c);
-            if (sonuc && sonuc.basarili) {
-              // kayıt plaka-yerel.js içinde zaten yazıldı
-              return;
-            }
-            // Sunucu okuyamadı: KIRPILMIŞ görüntüyü de dene (daha yakın kırpım
-            // bazen işe yarar; ölçümde 640x101 hep boş döndü ama kadraj farklı
-            // olabilir).
-            try {
-              var s2 = await Cam.compressCanvas(c, 2560, 800000);
-              await Cam.read(s2);
-            } catch (e3) {
-              bildir('Plaka okunamadı. Plakaya biraz daha yaklaşıp tekrar deneyin.', 'warn');
-            }
-            return;
+            await Cam.read(c);
           } catch (e2) {
             console.warn('[yerel kamera] yerel OCR hatası:', e2);
             // ÖLÇÜLEN HATA: burası hatayı YUTUYORDU ("düşmeye devam et"),
@@ -277,6 +276,7 @@
               '. Fotoğrafı galeriden seçmeyi deneyin.', 'err');
             return;
           }
+          return;
         }
         
         // Yerel OCR yoksa uygulamanın kendi yolu (daha yavaş, kırpar)

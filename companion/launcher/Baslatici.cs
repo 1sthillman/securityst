@@ -119,6 +119,35 @@ namespace CinarkoySync
         }
 
         public static string YerelPanel { get { return "http://localhost:" + Port + "/"; } }
+        /// Kurulum anahtarı (64 haneli). config.json'da kurulumda üretilir.
+        ///
+        /// ÖLÇÜLEN HATA: panel "Ağdan: http://localhost:4577/" ve "Plaka motoru:
+        /// yok" gösteriyordu. Sebep: /durum ve /plaka/durum uçları anahtar
+        /// zorunlu kıldı (401), launcher hiç göndermiyordu. Canlı ölçüm:
+        ///   /durum       -> 401   (anahtarsız)
+        ///   /plaka/durum -> 401   (anahtarsız)
+        ///   /plaka/durum -> 200   (X-Sync-Token ile) aktif=true
+        ///
+        /// Anahtar config.json'da zaten var; panelin okuyabildiği yerde.
+        public static string KurulumAnahtari
+        {
+            get
+            {
+                try
+                {
+                    string cfg = Path.Combine(AppDizini, "config.json");
+                    if (File.Exists(cfg))
+                    {
+                        string t = File.ReadAllText(cfg, Encoding.UTF8);
+                        Match m = Regex.Match(t, "\"token\"\\s*:\\s*\"([^\"]+)\"");
+                        if (m.Success) return m.Groups[1].Value;
+                    }
+                }
+                catch { }
+                return "";
+            }
+        }
+
         /// Telefon uygulaması servis tarafından yayınlanıyor. Adres her zaman
         /// doğrudur; bilgisayarın IP'si değişse bile değişmez.
         ///
@@ -196,7 +225,7 @@ namespace CinarkoySync
                 if (saglik == null) { d.Hata = "Servis yanıt vermiyor."; return d; }
                 d.Ayakta = true;
                 d.KayitSayisi = IntOku(saglik, "kayitSayisi");
-                string durum = JsonAl("http://127.0.0.1:" + Yol.Port + "/durum");
+                string durum = JsonAl("http://127.0.0.1:" + Yol.Port + "/durum", Yol.KurulumAnahtari);
                 if (durum != null)
                 {
                     d.ExcelBayt = LongOku(durum, "excelBytes");
@@ -204,7 +233,7 @@ namespace CinarkoySync
                     d.AgAdresleri = DiziOku(durum, "adresler");
                 }
                 // Plaka motoru durumu: ayrı uç, çünkü /durum yalnızca özet veriyor
-                string plaka = JsonAl("http://127.0.0.1:" + Yol.Port + "/plaka/durum");
+                string plaka = JsonAl("http://127.0.0.1:" + Yol.Port + "/plaka/durum", Yol.KurulumAnahtari);
                 if (plaka != null)
                 {
                     d.PlakaAktif = MantiksalOku(plaka, "aktif");
@@ -216,6 +245,23 @@ namespace CinarkoySync
             catch (Exception e) { d.Hata = e.Message; }
             GC.KeepAlive(benim);
             return d;
+        }
+
+        /// ÖLÇÜLEN HATA: /durum ve /plaka/durum anahtar zorunlu kıldı;
+        /// launcher anahtarsız çağırınca 401 alıyor ve panel boş bilgi
+        /// gösteriyordu. Artık kurulum anahtarı başlıkla gönderiliyor.
+        private static string JsonAl(string url, string kurulumAnahtari)
+        {
+            try
+            {
+                var wc = new WebClient();
+                wc.Encoding = Encoding.UTF8;
+                wc.Headers.Add("Cache-Control", "no-cache");
+                if (!string.IsNullOrEmpty(kurulumAnahtari))
+                    wc.Headers["X-Sync-Token"] = kurulumAnahtari;
+                return wc.DownloadString(url);
+            }
+            catch { return null; }
         }
 
         private static string JsonAl(string url)

@@ -6017,13 +6017,31 @@ const Cam = {
     try{ this.stopStream(); }catch(e){}
     try{ if(v) v.style.display='none'; }catch(e){}
     try{ if(ph) ph.style.display='none'; }catch(e){}
-    /* ÖLÇÜLEN HATA: `.cam-overlay` position:absolute + z-index:1 olduğu için
-       GÖRÜNTÜNÜN ÜSTÜNDE kalıyor ve fotoğrafı %55 karartıyordu (ilk denemede
-       ölçüldü: display:block, 886x428 çiziliyor, yine de ekran siyaftı).
-       Çekilmiş bir fotoğrafta karartma maskesinin anlamı yoktur. Aynı şekilde
-       "plakayı çerçeveye alın" rehberi de anlamsızlaşır. */
-    try{ const ov=$('#camOverlay'); if(ov) ov.style.display='none'; }catch(e){}
-    try{ const gd=$('#camGuide'); if(gd) gd.style.display='none'; }catch(e){}
+    /* ÖLÇÜLEN HATA: çerçeve ve karartma maskesi GİZLENİYORDU.
+       Kullanıcı: "çerçeveye yerleştirin diyor ama çerçeve yok, çerçevede
+       bunu göremiyoruz". İki ayrı ölçüm:
+         a) `.cam-overlay` z-index:1 ile fotoğrafın ÜSTÜNDE ve %55 karartıyordu
+            (ilk denemede ölçüldü: display:block, 886x428 çiziliyor, ekran
+            yine de siyaftı) -> karartma MIKTARı sıfırlandı, maske gizlenmedi.
+         b) Kırpma ipucu deneyi (5 gerçek görüntü x 4 senaryo):
+              ipucu YOK .......... 4/5
+              varsayılan ust=36  4/5
+              tam kare ust=0     4/5
+              ust=20 yuk=60      4/5
+            Yani ipucu okumayı ne düzeltir ne bozar; SUÇLU DEĞİL.
+       Çerçeve kullanıcıya bırakılıyor ve fotoğrafın tamamını kapsayacak
+       şekilde ayarlanıyor: ekrandaki çerçeve ile gönderilen ipucu birebir
+       aynı olur; kullanıcı isterse daraltır. */
+    try{ const ov=$('#camOverlay'); if(ov) ov.style.opacity='0'; }catch(e){}
+    try{
+      const gd=$('#camGuide');
+      if(gd){
+        gd.style.display='block';
+        gd.style.top='2%'; gd.style.height='96%';
+        gd.style.left='2%'; gd.style.right='2%';
+      }
+      if(this.cropArea){ this.cropArea.top=2; this.cropArea.height=96; }
+    }catch(e){}
     try{
       g.src = (src && typeof src.toDataURL==='function')
         ? src.toDataURL('image/jpeg', 0.92) : src;

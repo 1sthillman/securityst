@@ -34,6 +34,25 @@
    */
   var API_ANAHTARI = 'ck_yk_8f2a1c47b93d5e60a1f7c4b8d29e6035';
   
+  /* ÖLÇÜLEN HATA (kullanıcının telefon konsolundan, 29.09.2026):
+       [yerel OCR] anahtar alınamadı (1. deneme):
+       ReferenceError: TOKEN is not defined   at baslatBir
+
+     KÖK NEDEN: `TOKEN` HİÇ TANIMLANMAMIŞTI — dosyada yalnızca ATANIYORDU
+     (satır 340, 523, 686). `ckBasliklar()` bu yüzden savunmacı yazılmıştı:
+         if (typeof TOKEN !== 'undefined' && TOKEN) b['X-Sync-Token'] = TOKEN;
+     Yani istekler `Authorization: Bearer` ile geçiyor, kurulum anahtarı
+     (X-Sync-Token) HİÇ kullanılmıyordu. Dosya strict mode'da olduğu için
+     atama `ReferenceError` veriyordu.
+
+     ETKİ: `/plaka/oku` Bearer anahtarıyla çalıştığı için okuma YINE de
+     oluyordu; patlama yalnızca açılışta anahtarın saklanmasını engelliyordu.
+
+     DÜZELTME: değişkeni tanımla. Artık kurulum anahtarı da gönderilir ve
+     `ckBasliklar` içindeki savunma gereksizleşir (silinmedi: yine de
+     kullanıcının elinde TOKEN yoksa hata vermemesi için doğru). */
+  var TOKEN = '';
+
   function ckBasliklar(ekstra) {
     var b = Object.assign({}, ekstra || {});
     b['Authorization'] = 'Bearer ' + API_ANAHTARI;

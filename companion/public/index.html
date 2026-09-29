@@ -84,6 +84,26 @@
 
           <div class="kart">
             <div class="kart-bas">
+              <h2>Telefonu eşleştir</h2>
+              <a class="dugme sade kucuk" href="/eslesme.html">Eşleşme<span data-ikon="esle"></span></a>
+            </div>
+            <div class="kart-govde esleme-kart">
+              <div class="qr-kutu" id="qrKutu">
+                <div class="qr-bekle" id="qrBekle">QR hazırlanıyor…</div>
+              </div>
+              <p class="qr-aciklama">
+                Telefonun kamerasıyla bu kodu okutun. <b>Adres ve anahtar kodun
+                içindedir</b> — hiçbir şey yazmanıza gerek yoktur.
+              </p>
+              <div class="alt-bilgi">
+                <span>Telefon adresi</span>
+                <span class="mono" id="qrAdres">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas">
               <h2>Sistem durumu</h2>
               <span class="rozet" id="surum">—</span>
             </div>
@@ -113,6 +133,19 @@
     </main>
   </div>
 
+  <style>
+    /* Eslesme QR karti. Kutu sabit boyutta olmali ki QR her cihazda
+       okunabilir kalsin; icerik kirpilmez (object-fit yerine sW). */
+    .esleme-kart{ display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
+    .qr-kutu{ width:196px; height:196px; background:#fff; border-radius:14px;
+      padding:10px; display:flex; align-items:center; justify-content:center;
+      overflow:hidden; box-shadow:0 6px 20px -12px rgba(0,0,0,.5); }
+    .qr-kutu svg{ width:100%; height:100%; display:block; }
+    .qr-bekle{ font-size:.78rem; color:#555; text-align:center; padding:10px;
+      line-height:1.55; }
+    .qr-aciklama{ margin:0; font-size:.85rem; line-height:1.65; }
+    .qr-aciklama b{ color:inherit; }
+  </style>
   <script src="assets/core.js"></script>
   <script>
   (function () {
@@ -189,6 +222,32 @@
     });
     canliBag.baglan();
 
+    /* ---- Eslesme QR'i ---------------------------------------------- */
+    /* QR sunucuda uretiliyor ve KURULUM ANAHTARINI iceriyor. Cozuldu ve
+       dogrulandi (jsQR): http://<adres>#token=<64 haneli>. Telefon okutunca
+       adres ve anahtar ikisi gelir; ag istegi gerekmez. */
+    function qrYukle() {
+      var kutu = document.getElementById("qrKutu");
+      var bekle = document.getElementById("qrBekle");
+      if (!kutu) return;
+      CK.istek("/eslesme")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d || !d.qrSvg) throw new Error("sunucu QR uretmedi");
+          kutu.innerHTML = d.qrSvg;
+          var a = document.getElementById("qrAdres");
+          if (a) a.textContent = d.kaliciAdres || d.qrAdres || "-";
+        })
+        .catch(function (e) {
+          /* SESSIZ HATA YUTMA YOK: sebep ekrana yazilir. */
+          if (bekle) {
+            bekle.textContent = "QR uretilemedi: " + ((e && e.message) || e) +
+              " — Eslesme sayfasini acin.";
+          }
+        });
+    }
+    qrYukle();
+
     function durumCiz(d) {
       if (!d) return;
       CK.sayiHedef(document.getElementById("sKayit"), d.kayitSayisi || 0);
@@ -210,6 +269,7 @@
 
     document.getElementById("yenile").addEventListener("click", function () {
       canliBag.tazele();
+      qrYukle();
       CK.istek("/kayitlar?limit=25")
         .then(function (r) { return r.json(); })
         .then(function (d) { yenilenen = (d.records || []).slice(); tabloyuCiz(yenilenen); CK.bildir("Liste yenilendi", "olumlu"); })

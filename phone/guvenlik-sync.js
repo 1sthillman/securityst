@@ -756,7 +756,10 @@ function qrCoz(dosya) {
   var veriDizi = veri ? veri.data : null;
   var adres = veriDizi ? qrCokluDeneme(veriDizi, cw, ch) : null;
   URL.revokeObjectURL(url);
-  co(adres ? { adres: adres } : { hata: 'cozemedi' });
+  // ÖLÇÜLEN HATA: yalnızca adres dönüyordu; ham metin (anahtarla birlikte)
+  // kayboluyordu. Artık `metin` de dönüyor ki eşleşme penceresi QR'ın
+  // içindeki kurulum anahtarını DOĞRUDAN kullanabilsin.
+  co(adres ? { adres: adres, metin: qrSonHam } : { hata: 'cozemedi' });
   } catch (e) {
   URL.revokeObjectURL(url);
   co({ hata: 'cozemedi' });
@@ -777,6 +780,15 @@ function qrCoz(dosya) {
  * @param {Uint8ClampedArray} rgba piksel verisi (gri tonlu)
  * @returns {string|null} adres ya da null
  */
+/**
+ * Son başarılı QR çözümlemesinin HAM metni.
+ *
+ * ÖLÇÜLEN HATA: ham metin saklanmadığı için kurulum anahtarı
+ * (`#token=...`) kayboluyor, anahtar ağdan isteniyor ve eşleşme başarısız
+ * oluyordu. qrCoz bu değeri `metin` alanıyla döner.
+ */
+var qrSonHam = '';
+
 function qrCokluDeneme(rgba, w, h) {
   var dene = [];
   dene.push(['orijinal', rgba]);
@@ -787,8 +799,12 @@ function qrCokluDeneme(rgba, w, h) {
   try {
   var r = window.jsQR(dene[i][1], w, h);
   if (r && r.data) {
+  // ÖLÇÜLEN HATA: çözülen metin burada kayboluyordu. `qrAdresAyikla`
+  // #token= kısmını sildiği için kurulum anahtarı eşleşme penceresine
+  // hiç ulaşamıyor, anahtar ağdan isteniyor ve "aynı Wi-Fi'de misiniz?"
+  // mesajı çıkıyordu. Ham metin saklanıyor.
   var a = qrAdresAyikla(r.data);
-  if (a) return a;
+  if (a) { qrSonHam = String(r.data); return a; }
   }
   } catch (e) { /* bu deneme başarısız, sonrakine geç */ }
   }
@@ -837,6 +853,46 @@ function qrAdresAyikla(metin) {
   s = s.split('#')[0].split('?')[0];
   if (!/^https?:\/\//i.test(s)) return null;
   return s.replace(/\/+$/, '');
+}
+
+/**
+ * QR içeriğinden KURULUM ANAHTARINI ayıklar.
+ *
+ * ÖLÇÜLEN HATA: `qrAdresAyikla` anahtarı siliyor, sonra uygulama ağdan
+ * istiyordu. Ağ isteği başarısız olunca kullanıcı "aynı Wi-Fi'de misiniz?"
+ * görüyordu ama asıl sebep karşılaştırmalı içerik (https sayfa -> http
+ * sunucu) ya da CORS'tu. QR zaten anahtarı taşıyor.
+ *
+ * @returns {string} 64 haneli anahtar ya da boş dize.
+ */
+function qrTokenAyikla(metin) {
+  var t = String(metin || '').trim();
+  if (!t) return '';
+  var m = /[#?&]token=([A-Za-z0-9_-]+)/.exec(t);
+  return m ? m[1] : '';
+}
+
+/**
+ * Adres döngüsel mi? (127.0.0.1 / localhost / ::1 / 0.0.0.0)
+ *
+ * ÖLÇÜLEN HATA (kullanıcı ekran görüntüsü, 29.09.2026): telefonda
+ * "Bilgisayara ulaşılamıyor" çıkıyordu ve denenecek adreslerin ilki
+ * `http://127.0.0.1:4577` idi. Telefonda 127.0.0.1 TELEFONUN KENDİSİDİR;
+ * companion sunucusu orada yoktur, istek telefonun boş döngüsüne gider.
+ * Aynı Wi-Fi olması sorunu çözmez — adres zaten yanlıştır, sorun ağ değildir.
+ */
+function donguMu(adres) {
+  var t = String(adres || '').toLowerCase();
+  if (!t) return false;
+  return /^(https?:\/\/)(127\.0\.0\.1|localhost|0\.0\.0\.0|\[?::1\]?)(:|\/|$)/.test(t);
+}
+
+/**
+ * Sayfa döngüsel adresten mi servis edildi? (bilgisayarda localhost açılır)
+ * Döngüsel DEĞİLSE, döngüsel bir sunucu adresi kesinlikle YANLIŞTIR.
+ */
+function sayfaDonguselMi() {
+  try { return donguMu(window.location.origin); } catch (e) { return false; }
 }
 
 function openCfg() {
@@ -927,6 +983,18 @@ function openCfg() {
   }
   var adres = sonuc.adres;
   box.querySelector('#gsync-url').value = adres;
+
+  // ÖLÇÜLEN HATA: burada anahtar QR'dan okunmak yerine AĞDAN isteniyordu.
+  // QR anahtarı zaten taşıyor; ağ isteği hem gereksiz hem de https'ten
+  // açıldığında karşılaştırmalı içerik kuralıyla engelleniyordu.
+  // Sonuç: kullanıcı "aynı Wi-Fi'de misiniz?" görüyordu, oysa sorun ağ değil.
+  var qrToken = qrTokenAyikla(sonuc.metin || sonuc.ham || '');
+  if (qrToken) {
+    box.querySelector('#gsync-tok').value = qrToken;
+    msg('Adres ve anahtar QR kodundan alındı. "Kaydet" deyin.');
+    return;
+  }
+
   msg('Adres bulundu: ' + adres + ' — anahtar alınıyor…');
   // Kurulum anahtarını o adresten OTOMATİK al. /eslesme herkese açıktır
   // ve 64 haneli kurulum anahtarını döner. Kullanıcı yazmak zorunda kalmaz.
@@ -937,10 +1005,19 @@ function openCfg() {
   box.querySelector('#gsync-tok').value = d.token;
   msg('Bulundu: ' + adres + ' — anahtar alındı. "Kaydet" deyin.');
   } else {
-  msg('Adres bulundu ama anahtar alınamadı. "Kaydet" deyip deneyin.');
+  // ÖLÇÜLEN HATA: bu mesaj ağ sorunu ima ediyordu ("Kaydet deyip deneyin"),
+  // oysa asıl neden anahtarın ağdan GELMESİ. Doğrusu: QR'ı okutmayı söyle,
+  // çünkü QR anahtarı taşıyor. Kullanıcı yanlış yere bakmasın.
+  msg('Adres bulundu ama anahtar alınamadı. Bilgisayar panelindeki QR kodu okutun — adres ve anahtar kodun içinde.');
   }
   }).catch(function () {
-  msg('Adres bulundu ama sunucuya ulaşılamadı. Aynı Wi-Fi üzerinde misiniz?');
+  // ÖLÇÜLEN HATA (kullanıcı: "aynı Wi-Fi'ye bağlı mısınız diyor ama aynı
+  // Wi-Fi'ye bağlıyız"): bu mesaj ağ KONUMUNU suçluyordu, oysa uygulama
+  // sunucudan servis edildiği için zaten aynı ağdadır. Gerçek olası sebepler:
+  // adres eski (bilgisayarın IP'si değişmiş) ya da istek https sayfadan
+  // http adrese yapıldığı için tarayıcı engellemiş. Kullanıcıya çözüm yolu
+  // söyle: bilgisayar panelindeki QR'ı okutsun.
+  msg('Adres bulundu ama sunucuya ulaşılamadı. Bilgisayarın IP adresi değişmiş olabilir; paneldeki güncel QR kodunu okutun.');
   });
   }).catch(function () { msg('QR okunamadı.'); });
   });
@@ -1100,7 +1177,20 @@ function openCfg() {
      *   POST https://1sthillman.github.io/plaka/oku  -> 405
      * Bu işlev tek kaynak olur; plaka-yerel.js ve eşleşme bunu kullanır.
      */
-    adres: function () { return S.baseUrl || sunucuKoku(); },
+    adres: function () {
+      // ÖLÇÜLEN HATA (kullanıcı ekran görüntüsü, 29.09.2026): telefonda
+      // kayıtlı adres `http://127.0.0.1:4577` idi ve denenecek adreslerin
+      // ilkisiydi. Telefonda 127.0.0.1 TELEFONUN KENDİSİDİR; companion
+      // sunucusu orada yoktur, istek telefonun boş döngüsüne gider ve
+      // "Bilgisayara ulaşılamıyor" çıkar. Aynı Wi-Fi olması sorunu
+      // çözmez — adres zaten yanlıştır, sorun ağ değildir.
+      // Uygulama sunucudan servis EDİLİR: `location.hostname` zaten
+      // doğrudur. Sayfa döngüsel değilse döngüsel kayıt KULLANILMAZ.
+      if (!sayfaDonguselMi() && donguMu(String(S.baseUrl || ''))) {
+        S.baseUrl = null;
+      }
+      return S.baseUrl || sunucuKoku();
+    },
     /**
      * Bağlantı hatasında SIRADAKİ adrese geçer (kendi kendini onarır).
      *
@@ -1115,7 +1205,13 @@ function openCfg() {
      */
     sonrakiAdres: function () {
       var suAn = S.baseUrl;
-      var liste = (S.adaylar || []).filter(function (a) { return a && a !== suAn; });
+      // ÖLÇÜLEN HATA: aday listesinde `127.0.0.1` birinci sırada denendiği
+      // için sunucuya hiç ulaşılamıyordu. Sayfa döngüsel değilse döngüsel
+      // adresler aday OLMAZ — telefonda orada companion sunucusu yoktur.
+      var sayfaDongu = sayfaDonguselMi();
+      var liste = (S.adaylar || []).filter(function (a) {
+        return a && a !== suAn && (sayfaDongu || !donguMu(a));
+      });
       var kok = sunucuKoku();
       // NEGATİF KONTROL BUGÜN YAKALADI: `kok` az önce BAŞARISIZ olan adresin
       // kendisiyse (aynı sayfa hem doğru hem bozuk köken olabilir) onu
