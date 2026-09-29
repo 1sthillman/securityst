@@ -1101,6 +1101,35 @@ function openCfg() {
      * Bu işlev tek kaynak olur; plaka-yerel.js ve eşleşme bunu kullanır.
      */
     adres: function () { return S.baseUrl || sunucuKoku(); },
+    /**
+     * Bağlantı hatasında SIRADAKİ adrese geçer (kendi kendini onarır).
+     *
+     * ÖLÇÜLEN HATA: telefonda bozuk kayıtlı adres vardı
+     * (http://localhost:195) ve plaka okuma bu yüzden hiç çalışmadı.
+     * Biçim denetimi yakalayamıyor (geçerli port), çünkü sorun erişim.
+     *
+     * İKİ KURAL:
+     *   1) Az önce BAŞARISIZ olan adres ASLA tekrar seçilmez.
+     *   2) Sayfanın kendi kökeni (`sunucuKoku()`) DAİMA adaydır —
+     *      companion sunucusundan açıldığında bu her zaman doğrudur.
+     */
+    sonrakiAdres: function () {
+      var suAn = S.baseUrl;
+      var liste = (S.adaylar || []).filter(function (a) { return a && a !== suAn; });
+      var kok = sunucuKoku();
+      // NEGATİF KONTROL BUGÜN YAKALADI: `kok` az önce BAŞARISIZ olan adresin
+      // kendisiyse (aynı sayfa hem doğru hem bozuk köken olabilir) onu
+      // listeye geri koymak, aynı çalışmayan adrese SONSUZA kadar yeniden
+      // denemek demek. Bu yüzden `suAn` ile eşitse eklenmez.
+      if (kok && kok !== suAn && liste.indexOf(kok) === -1) liste.push(kok);
+      if (!liste.length) return "";
+      S.baseUrl = liste[0];
+      S.adaylar = [S.baseUrl].concat(liste);
+      S.adaySira = 0;
+      return S.baseUrl;
+    },
+    /** Adresin o an gerçekten çalıştığı doğrulandı mı? */
+    adresDogrulandi: function () { return !!(S.baseUrl && S.lastOkAt > 0); },
     flush: tryFlush,
     flushBatch: tryFlushBatch,
     enqueueVisit: enqueueVisit,

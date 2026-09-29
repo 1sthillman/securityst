@@ -239,6 +239,17 @@
         // buluyor, kırpmaya gerek yok.
         //
         // ÖNCE yerel OCR (tam kare). Yoksa uygulamanın yoluna düşülür.
+        // ÖLÇÜLEN HATA VE GERİ ALMA (test paketi 5 FAIL verdi):
+        // "8 MB sınırı aşılıyor" TESPİTİ doğruydu, ama ÇÖZÜMÜ yanlıştı.
+        // Sıkıştırmayı HER ZAMAN önce uygulamak plaka çözünürlüğünü
+        // düşürüyordu. Doğru tasarım zaten mevcuttu ve korundu:
+        //   1) ÖNCE orijinal kanvas, sıkıştırmadan (kalite)
+        //   2) sıkıştırma SADECE tam kare başarısızsa (yedek yol)
+        // 8 MB aşımı da 2. adımdaki yedek yolla karşılanıyor.
+      // KULLANICI İSTEĞİ: çekilen fotoğraf ekranda görünsün. Fotoğraf
+      // gelmiş olabilir ama kullanıcı bunu göremediği için "okumuyor"
+      // sanıyordu. Görüntülenmeyen hata, olmayan hata gibi görünür.
+      try { if (typeof Cam.onizleme === 'function') Cam.onizleme(c); } catch (e0) {}
         var yerel = window.CKYerel;
         if (yerel && typeof yerel.oku === 'function') {
           yaz('Plaka okunuyor…');
@@ -260,7 +271,11 @@
             return;
           } catch (e2) {
             console.warn('[yerel kamera] yerel OCR hatası:', e2);
-            // düşmeye devam et
+            // ÖLÇÜLEN HATA: burası hatayı YUTUYORDU ("düşmeye devam et"),
+            // kullanıcı ekranda hiçbir şey görmüyordu. Sessiz hata yutma olmayacak.
+            bildir('Fotoğraf okunamadı: ' + ((e2 && e2.message) || e2) +
+              '. Fotoğrafı galeriden seçmeyi deneyin.', 'err');
+            return;
           }
         }
         
@@ -268,6 +283,9 @@
         try { if (typeof Cam.stopStream === 'function') Cam.stopStream(); } catch (e) {}
         try { if (typeof Cam.reset === 'function') Cam.reset(); } catch (e) {}
         try { if (typeof Cam.show === 'function') Cam.show(); } catch (e) {}
+        // ÖLÇÜLEN SIRA HATASI: bu yolda da `reset()` önizlemeyi gizliyordu.
+        // Fotoğraf her iki yolda da görünmeli: `show()` SONRASI çağrılır.
+        try { if (typeof Cam.onizleme === 'function') Cam.onizleme(c); } catch (e1) {}
         yaz('Plaka okunuyor…');
         // Yerel OCR yok: burada sıkıştırma gerekiyor (kırpma uygulanır).
         var compressed = await Cam.compressCanvas(c, 2560, 800000);

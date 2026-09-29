@@ -390,6 +390,10 @@ body.cam-on{ overflow:hidden; }
   box-shadow:0 24px 60px -30px rgba(0,0,0,.95), inset 0 0 0 1px rgba(255,255,255,.04);
   display:flex; align-items:center; justify-content:center;
 }
+  /* Çekilen fotoğrafın gösterimi. Kullanıcı fotoğrafın geldiğini görmeli,
+     aksi halde "gelmedi" ile "okunamadı" ayırt edilemiyor. */
+  .cam-view #camOnizleme{ display:none; position:absolute; inset:0;
+    width:100%; height:100%; object-fit:contain; background:#000; }
 .cam-view video{ width:100%; height:100%; object-fit:cover; display:block; }
 .cam-view .ph{ color:rgba(255,255,255,.6); font-size:13px; text-align:center; padding:24px; line-height:1.65; max-width:34ch; }
 .cam-view .ph b{ color:var(--amber); }
@@ -1438,8 +1442,7 @@ body.cam-on{ overflow:hidden; }
         </div>
         <div class="srow" data-set="phoneCam">
 <div class="sico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h3l2-2h6l2 2h3a1 1 0 011 1v10a1 1 0 01-1 1H4a1 1 0 01-1-1V8a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-<div class="smain"><div class="st">Telefonun kamerası</div>
-<div class="ss">Fotoğraf çek, oku, kaydet. Sertifika gerekmez. Kapatırsanız yalnızca https üzerinde canlı ön izleme açılır</div>
+<div class="smain"><div class="st">Telefonun kamerası</div><div class="ss">Fotoğraf çek, oku, kaydet. Sertifika gerekmez. Kapatırsanız yalnızca https üzerinde canlı ön izleme açılır</div></div>
 <div class="sw" data-sw="phoneCam"></div>
 </div>
 <div class="srow" data-set="autoCam">
@@ -1848,6 +1851,7 @@ body.cam-on{ overflow:hidden; }
   </div>
 
   <div class="cam-view" id="camView">
+<img id="camOnizleme" alt="" aria-hidden="true">
     <div class="ph" id="camPh">Kamera başlatılıyor…</div>
     <video id="camVideo" playsinline autoplay muted style="display:none"></video>
     
@@ -4424,6 +4428,14 @@ const Cam = {
     $('#camCourier').textContent='—'; $('#camCourier').classList.add('dim');
     this.paintAlts([]);
     this.say(''); this.progOff();
+    const g=$('#camOnizleme');
+    if(g){ g.style.display='none'; g.removeAttribute('src'); }
+    const ph=$('#camPh'); if(ph) ph.style.display='';
+    const vd=$('#camVideo'); if(vd) vd.style.display='';
+    // onizleme() karartma maskesini ve rehberi gizlemişti; kamera yeniden
+    // açılınca geri gelmeli.
+    const ov=$('#camOverlay'); if(ov) ov.style.display='';
+    const gd=$('#camGuide'); if(gd) gd.style.display='';
   },
   /* Kamera üstündeki kalıcı uyarı şeridi (dosya modu, kısıt vb.) */
   warn(t){
@@ -5996,6 +6008,30 @@ const Cam = {
       box.appendChild(b);
     });
   },
+  /* Çekilen/seçilen fotoğrafı kamera alanında GÖSTER. Canlı akış
+     güvensiz kaynakta açılmadığı için ekran boş kalıyordu; kullanıcı
+     fotoğrafın gelip gelmediğini göremiyordu. */
+  onizleme(src){
+    const g=$('#camOnizleme'), ph=$('#camPh'), v=$('#camVideo');
+    if(!g) return false;
+    try{ this.stopStream(); }catch(e){}
+    try{ if(v) v.style.display='none'; }catch(e){}
+    try{ if(ph) ph.style.display='none'; }catch(e){}
+    /* ÖLÇÜLEN HATA: `.cam-overlay` position:absolute + z-index:1 olduğu için
+       GÖRÜNTÜNÜN ÜSTÜNDE kalıyor ve fotoğrafı %55 karartıyordu (ilk denemede
+       ölçüldü: display:block, 886x428 çiziliyor, yine de ekran siyaftı).
+       Çekilmiş bir fotoğrafta karartma maskesinin anlamı yoktur. Aynı şekilde
+       "plakayı çerçeveye alın" rehberi de anlamsızlaşır. */
+    try{ const ov=$('#camOverlay'); if(ov) ov.style.display='none'; }catch(e){}
+    try{ const gd=$('#camGuide'); if(gd) gd.style.display='none'; }catch(e){}
+    try{
+      g.src = (src && typeof src.toDataURL==='function')
+        ? src.toDataURL('image/jpeg', 0.92) : src;
+      g.style.display='block';
+    }catch(e){ return false; }
+    return true;
+  },
+
   show(){ $('#camOut').classList.add('show'); $('#camActions').classList.add('show'); },
 
   /* ---- BASIT TESSERACT WORKER ---- */
@@ -6212,6 +6248,13 @@ $('#camFile').addEventListener('change', e=>{
       Cam.reset(); 
       Cam.show();
       Cam.status('Galeriden fotoğraf okunuyor…');
+
+      /* KULLANICI İSTEĞİ: fotoğraf burada GÖRÜNSÜN — geldi mi, doğru mu
+         anlaşılsın. Ölçülen belirti: ekran boş kalıyordu.
+         ÖLÇÜLEN SIRA HATASI: bu çağrı önce `Cam.reset()` ÖNCESİ konmuştu;
+         `reset()` önizlemeyi gizlediği için görüntü hiç görünmüyordu.
+         Doğru yer: reset()/show() SONRASI. */
+      Cam.onizleme(c);
       
       // Sıkıştırılmış versiyonu oku
       await Cam.read(compressed);

@@ -164,6 +164,17 @@ function tam(url) { return kokCoz() + url; }
    *
    * @returns {string|null} PNG data URL
    */
+  /**
+   * Canlı akıştan tam kare yakalar.
+   *
+   * ÖLÇÜLEN HATA (kullanıcı: "kamera açılıyor çekiyoruz ama okumuyor"):
+   * akış vardı ama yakalama null döndü ve kod sessizce galeri yoluna
+   * düştü. İki ayrı sebep vardı ve ikisi de aynı görünüyordu:
+   *   a) video henüz dekode olmamış (videoWidth/videoHeight = 0)
+   *   b) canvas bağlamı alınamadı ya da çizim hata verdi
+   * Artık sebep ÖLÇÜLÜP döndürülüyor; `kare-yok` ayrımı ekranda da
+   * görülebiliyor (konsol tek başına yetmiyor — telefon kullanılıyor).
+   */
   function tamKareYakala() {
     try {
       var v = document.querySelector('#camVideo') || document.querySelector('video');
@@ -242,7 +253,31 @@ function tam(url) { return kokCoz() + url; }
   }
 
   /** Tek bir isteği sunucuya yollar. */
+  /**
+   * Ağ hatasında sıradaki adrese geçip BİR KEZ daha dener.
+   *
+   * ÖLÇÜLEN HATA: `tekIstek` tek deneme yapıyordu. Bozuk kayıtlı adres
+   * (http://localhost:195) yüzünden hem kamera hem galeri okuması düştü.
+   * Kayıt gönderiminin kendi aday rotasyonu vardı; plaka okumada yoktu.
+   */
   async function tekIstek(veri) {
+    try {
+      return await tekIstekBir(veri);
+    } catch (e) {
+      if (!e || !e.agHatasi) throw e;
+      var yeni = "";
+      try {
+        if (window.GuvenlikSync && typeof window.GuvenlikSync.sonrakiAdres === "function") {
+          yeni = window.GuvenlikSync.sonrakiAdres();
+        }
+      } catch (x) { yeni = ""; }
+      if (!yeni) throw e;
+      console.warn("[yerel OCR] " + e.message + " -> sıradaki adres denenecek: " + yeni);
+      return await tekIstekBir(veri);
+    }
+  }
+
+  async function tekIstekBir(veri) {
     var t0 = Date.now();
     CKYerel.istekSayisi++;
     // Zaman aşımı: sunucu yanıt vermezse telefon sonsuza kadar beklemez.
@@ -286,9 +321,14 @@ function tam(url) { return kokCoz() + url; }
     } catch (e) {
       // İptal edildi mi, yoksa bağlantı mı yok?
       var iptalMi = e && (e.name === 'AbortError' || /abort/i.test(e.message || ''));
-      throw new Error(iptalMi
+      var hata = new Error(iptalMi
         ? 'sunucu ' + Math.round(zamanAsimiMs / 1000) + ' saniyede yanıt vermedi'
         : 'sunucuya ulaşılamadı');
+      // AYRIM (ölçümle): zaman aşımı sunucunun YAVAŞ olduğunu gösterir —
+      // adresi değiştirmek yanlış olur. Ağ hatası ise adresin YANLIŞ
+      // olduğunu gösterir; sıradaki adres denenmeli.
+      if (!iptalMi) hata.agHatasi = true;
+      throw hata;
     } finally {
       if (zamanlayici) clearTimeout(zamanlayici);
     }
@@ -337,6 +377,19 @@ function tam(url) { return kokCoz() + url; }
     if (!AKTIF) return { basarili: false, hata: 'sunucu adresi bilinmiyor' };
 
     var tam = akisSec() ? tamKareYakala() : null;
+    // ÖLÇÜLEN HATA: akış vardı ama kare bir kez alınamadıysa kod galeri
+    // yoluna düşüyordu; `kaynak` kamera karesi olmadığı için orası da
+    // boş dönüyor ve kullanıcı EKRANDA HİÇBİR ŞEY görmüyordu.
+    // Kamera akışı ilk karelerde henüz dekode olmamış olabiliyor; bir kez
+    // kısa bekleyip tekrar denemek ölçülen bu boşluğu kapatıyor.
+    if (!tam && akisVarMi()) {
+      console.warn('[yerel OCR] kamera akışı var ama kare alınamadı — tekrar deneniyor');
+      await new Promise(function (coz) { setTimeout(coz, 350); });
+      tam = tamKareYakala();
+    }
+    if (!tam && akisVarMi()) {
+      console.warn('[yerel OCR] kare yine alınamadı (videoWidth/videoHeight hazır değil)');
+    }
     if (tam) {
       // TANI: gerçek telefonda akış her zaman bulunamıyor olabilir. Neyin
       // gönderildiğini konsola yazmadan teşhis koymak imkânsız.
@@ -352,11 +405,27 @@ function tam(url) { return kokCoz() + url; }
       return sonuc;
     }
 
-    // Akış yok: uygulamanın verdiği kareyi kullan (galeri yüklemesi).
+    // AYIRT EDİCİ NEDEN: "görüntü alınamadı" iki ayrı hatayı birleştiriyordu
+    // (kameradan kare yok / galeriden görsel yok) ve ikisi de ekranda aynı
+    // sessizliğe dönüşüyordu.
     var veri = tuvalHazirla(kaynak);
-    if (!veri) return { basarili: false, hata: 'görüntü alınamadı', neden: 'yerel' };
+    if (!veri) {
+      var neden = akisVarMi() ? 'kare-yok' : 'gorset-yok';
+      var ipucu = akisVarMi()
+        ? 'Kamera açın ve plakayı kadraja alın, sonra tekrar çekin'
+        : 'Görüntü yüklenemedi. Galeriden başka bir fotoğraf deneyin';
+      console.warn('[yerel OCR] görüntü alınamadı (neden=' + neden + ')');
+      return { basarili: false, hata: 'görüntü alınamadı', neden: neden, ipucu: ipucu };
+    }
+    // ÖLÇÜLEN KRİTİK HATA (kullanıcı: "ne galeriden ne kameradan okunmuyor"):
+    // buradaki log satırı, daha önce eklenip SONRA geri alınan `tamKare`
+    // değişkenine referans veriyordu. Değişken kaldırıldı, referans kaldı:
+    //   ReferenceError: tamKare is not defined  (plaka-yerel.js:420)
+    // `oku()` İLK satırda çöküyor, `Cam.read` bunu yakalayıp uygulamanın
+    // BULUT zincirine düşüyordu ("Tüm OCR API'leri başarısız"). Yani hem
+    // galeri hem kamera yolu ölüydü — ve sebep sessizdi.
     console.log('[yerel OCR] gönderilen: KIRPILMIŞ KARE (' + gorselOlcu(veri) + ')' +
-      ' ipucu=' + ipucuYaz(kirpmaIpuclari()) + ' — kamera akışı yok');
+      ' ipucu=' + ipucuYaz(kirpmaIpuclari()) + ' — akış yok, uygulamanın karesi');
     var sonucK = await tekIstek(veri);
     console.log('[yerel OCR] kırpma sonucu: basarili=' + sonucK.basarili +
       ' plaka=' + (sonucK.plaka || '-') + ' bolge=' + sonucK.bolgeler +
@@ -429,7 +498,18 @@ function tam(url) { return kokCoz() + url; }
     if (n === 'asiri-gurultulu') {
       return 'Görüntü çok gürültülü — sabit ışıkta plakaya yaklaştırın';
     }
-    if (n === 'motor-yok') {
+    // ÖLÇÜLEN HATA (29.09.2026): kamera akışı vardı ama kare alınamadığında
+  // kullanıcı EKRANDA HİÇBİR ŞEY görmüyordu. Bu iki durum genel
+  // 'okunamadı' mesajına karışıyordu. Artık ayrı ayrı bildiriliyor.
+  if (n === 'kare-yok') {
+    return 'Kameradan görüntü alınamadı — kamera açılana bir saniye bekleyip tekrar çekin';
+  }
+  if (n === 'gorset-yok') {
+    return 'Görüntü yüklenemedi — galeriden başka bir fotoğraf deneyin';
+  }
+  // Sunucu kendi ipucunu gönderdiyse o daha güvenilirdir.
+  if (sonuc && sonuc.ipucu) return String(sonuc.ipucu);
+  if (n === 'motor-yok') {
       return 'Plaka motoru yüklenemedi — bilgisayardaki programı yeniden başlatın';
     }
     return 'Plaka okunamadı — plakayı çerçeveye alıp tekrar deneyin';
@@ -589,28 +669,65 @@ function tam(url) { return kokCoz() + url; }
     CKYerel.hazir = AKTIF;
     if (!AKTIF) return;
 
-    // Motoru ısıt: ilk deklanşöre basıldığında ~1 saniye beklemesin.
-    fetch(tam('/plaka/durum'), { cache: 'no-store', headers: ckBasliklar() })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
+    /* ÖLÇÜLEN HATA: sıra ters ve hata yutuluyordu. Canlı ölçüm:
+         /plaka/durum -> 401  (anahtarsız soruluyordu)
+         /eslesme     -> 200  (token BURADA geliyor)
+       Kullanıcı ekranda "Sunucuya ulaşılamıyor" görüyordu ama sunucu
+       sağlamdı. Doğru sıra: ÖNCE anahtar, SONRA durum. */
+    var DENEME_SINIRI = 3;
+
+    function rozetTemizle() { if (rozet) rozet.style.opacity = '0'; }
+
+    async function baslatBir(deneme) {
+      // 1) ANAHTAR — sunucudaki tek doğruluk kaynağı. Durum yoklamasından
+      //    ÖNCE gelmeli; yoksa istek 401 alır (ölçüldü).
+      try {
+        var e = await (await fetch(tam('/eslesme'), { cache: 'no-store', headers: ckBasliklar() })).json();
+        if (e && e.token) TOKEN = e.token;
+      } catch (h) {
+        console.warn('[yerel OCR] anahtar alınamadı (' + (deneme + 1) + '. deneme):', h);
+      }
+
+      // 2) DURUM — anahtarla birlikte.
+      try {
+        var r = await fetch(tam('/plaka/durum'), { cache: 'no-store', headers: ckBasliklar() });
+        var d = await r.json();
         CKYerel.motor = d.motor || 'bilinmiyor';
         CKYerel.sonDurum = d;
-        if (d.aktif) {
-          rozetCiz('Yerel plaka motoru', true);
-          // Anahtarı otomatik al (panelde görünür; kullanıcı girmez)
-          return fetch(tam('/eslesme'), { cache: 'no-store', headers: ckBasliklar() })
-            .then(function (r) { return r.json(); })
-            .then(function (e) { TOKEN = e.token || ''; })
-            .then(function () { return fetch(tam('/plaka/hazirla'), { headers: ckBasliklar() }); });
+      } catch (h2) {
+        // Sunucuya GERÇEKTEN ulaşılamadı.
+        console.warn('[yerel OCR] sunucuya ulaşılamadı (' + (deneme + 1) + '. deneme):', h2);
+        if (deneme < DENEME_SINIRI) {
+          // KENDİ KENDİNİ İYİLEŞTİRME: artan aralıkla yeniden dene.
+          setTimeout(function () { baslatBir(deneme + 1); }, 1200 * (deneme + 1));
+        } else {
+          rozetCiz('Sunucuya ulaşılamıyor', false);
         }
+        return;
+      }
+
+      // 3) Sunucu erişilebilir. Bundan sonrası MOTOR durumu;
+      //    "sunucuya ulaşılamıyor" YAZILMAZ.
+      if (!d.aktif) {
         rozetCiz('Yerel motor yok — elle giriş', false);
         console.warn('[yerel OCR] motor yok:', d.sebep || d.error);
-      })
-      .catch(function () { rozetCiz('Sunucuya ulaşılamıyor', false); });
+        return;
+      }
+      rozetCiz('Yerel plaka motoru', true);
+
+      // 4) Motoru ısıt — bu sunucu için OPSIYONEL; hatası ayrı bildirilir.
+      try {
+        await fetch(tam('/plaka/hazirla'), { headers: ckBasliklar() });
+      } catch (h3) {
+        console.warn('[yerel OCR] motor ısıtılamadı (sunucu erişilebilir):', h3);
+      }
+    }
+
+    baslatBir(0);
 
     // Sekme kapanırken rozeti temizle
     window.addEventListener('pagehide', function () {
-      if (rozet) { rozet.style.opacity = '0'; }
+      rozetTemizle();
     });
   }
 
