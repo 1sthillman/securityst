@@ -332,9 +332,9 @@
         <div class="guard-item">
           <div class="guard-name">${CK.kacis(g.guard)}</div>
           <div class="guard-stats">
-            <span>📊 ${g.totalRecords} kayıt</span>
-            <span>🏢 ${Object.keys(g.sites).length} site</span>
-            <span>📈 ${g.avgPerDay}/gün</span>
+            <span>Kayıt: ${g.totalRecords}</span>
+            <span>Site: ${Object.keys(g.sites).length}</span>
+            <span>Günlük: ${g.avgPerDay}</span>
           </div>
           <div style="font-size:0.85rem;color:var(--text-2)">
             ${Object.entries(g.types).map(([t,c]) => `${t}: ${c}`).join(', ')}
@@ -344,7 +344,6 @@
     }
 
     async function renderCharts(data) {
-      // Trend chart
       const dashRes = await CK.istek('/stats/dashboard');
       const dashData = await dashRes.json();
       
@@ -372,7 +371,6 @@
         }
       });
       
-      // Type chart
       if (typeChart) typeChart.destroy();
       
       const allTypes = {};
