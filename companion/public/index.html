@@ -278,6 +278,8 @@
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
           <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
           <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
+          <a href="/blacklist.html"><span data-ikon="uyari"></span><span>Blacklist</span></a>
+          <a href="/performans.html"><span data-ikon="grafik"></span><span>Performans</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -368,6 +370,52 @@
               <div class="qr-adres-box" style="margin-top:14px;max-width:100%">
                 <span class="qr-adres-label">Son yazma</span>
                 <span class="qr-adres-value" id="sonYazma">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Yeni Dashboard Kartları -->
+        <section class="izgara-2" style="margin-top:24px">
+          <div class="kart">
+            <div class="kart-bas"><h2>Bugün</h2></div>
+            <div class="kart-govde">
+              <div style="display:grid;gap:16px">
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span style="color:var(--text-2);font-size:0.9rem">Toplam Giriş</span>
+                  <span id="dashTodayTotal" style="font-size:1.8rem;font-weight:700">-</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center">
+                  <span style="color:var(--text-2);font-size:0.9rem">Şu An İçeride</span>
+                  <span id="dashInFacility" style="font-size:1.8rem;font-weight:700;color:var(--ok)">-</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas"><h2>Blacklist Uyarıları</h2></div>
+            <div class="kart-govde">
+              <div id="dashBlacklist" style="font-size:0.9rem;color:var(--text-2)">
+                Yükleniyor...
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas"><h2>Sık Giriş Yapan Plakalar</h2></div>
+            <div class="kart-govde">
+              <div id="dashFrequent" style="font-size:0.9rem;color:var(--text-2)">
+                Yükleniyor...
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas"><h2>Bugünün En Aktif Görevlisi</h2></div>
+            <div class="kart-govde">
+              <div id="dashTopGuard" style="font-size:0.9rem;color:var(--text-2)">
+                Yükleniyor...
               </div>
             </div>
           </div>
@@ -691,6 +739,63 @@
       loadSiteStats();
     });
     
+    // Dashboard verileri yükle
+    async function loadDashboard() {
+      try {
+        const [dashRes, blacklistRes, frequentRes] = await Promise.all([
+          CK.istek('/stats/dashboard'),
+          CK.istek('/blacklist'),
+          CK.istek('/stats/frequent-plates?hours=2&minCount=3')
+        ]);
+        
+        const dash = await dashRes.json();
+        const blacklist = await blacklistRes.json();
+        const frequent = await frequentRes.json();
+        
+        if (dash.ok) {
+          document.getElementById('dashTodayTotal').textContent = dash.today.total;
+          document.getElementById('dashInFacility').textContent = dash.inFacility;
+          
+          // Tip dağılımı
+          const typeHtml = Object.entries(dash.today.byType)
+            .map(([t, c]) => `<div style="display:flex;justify-content:space-between;padding:4px 0"><span>${t}</span><b>${c}</b></div>`)
+            .join('');
+          if (typeHtml) {
+            document.getElementById('dashTodayTotal').parentElement.parentElement.innerHTML += typeHtml;
+          }
+        }
+        
+        if (blacklist.ok) {
+          const bl = blacklist.blacklist.slice(0, 5);
+          document.getElementById('dashBlacklist').innerHTML = bl.length 
+            ? bl.map(b => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b style="color:var(--danger);font-family:monospace">${b.plate}</b> - ${b.reason}</div>`).join('')
+            : '<div style="color:var(--text-2)">Blacklist boş</div>';
+        }
+        
+        if (frequent.ok) {
+          const freq = frequent.suspicious.slice(0, 5);
+          document.getElementById('dashFrequent').innerHTML = freq.length
+            ? freq.map(f => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b style="font-family:monospace;color:var(--warning)">${f.plate}</b> - ${f.count} giriş (${f.sites.join(', ')})</div>`).join('')
+            : '<div style="color:var(--text-2)">Şüpheli aktivite yok</div>';
+        }
+        
+        // En aktif görevli
+        const perfRes = await CK.istek('/stats/performance?startDate=' + new Date().setHours(0,0,0,0));
+        const perf = await perfRes.json();
+        if (perf.ok && perf.topGuard) {
+          document.getElementById('dashTopGuard').innerHTML = `
+            <div style="font-size:1.3rem;font-weight:700;margin-bottom:8px">${perf.topGuard.guard}</div>
+            <div style="color:var(--text-2)">${perf.topGuard.totalRecords} kayıt bugün</div>
+          `;
+        } else {
+          document.getElementById('dashTopGuard').innerHTML = '<div style="color:var(--text-2)">Henüz kayıt yok</div>';
+        }
+        
+      } catch (e) {
+        console.error('[Dashboard] Yükleme hatası:', e);
+      }
+    }
+    
     function loadSiteStats() {
       Promise.all([
         CK.istek('/siteler').then(r => r.json()),
@@ -794,6 +899,7 @@
     }
     
     loadSiteStats();
+    loadDashboard();
 
     function durumCiz(d) {
       if (!d) return;

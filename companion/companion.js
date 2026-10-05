@@ -2135,6 +2135,243 @@ app.delete('/site/:id', requireYerelPanel, async (req, res) => {
   }
 });
 
+// ============================================================================
+// BLACKLIST ENDPOINTS
+// ============================================================================
+const blacklist = require('./blacklist.js');
+
+// GET /blacklist - Blacklist listesi
+app.get('/blacklist', requireToken, (req, res) => {
+  try {
+    const list = blacklist.readBlacklist();
+    res.json({ ok: true, blacklist: list, count: list.length });
+  } catch (e) {
+    log('error', `[GET /blacklist] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /blacklist - Blacklist'e ekle
+app.post('/blacklist', requireYerelPanel, (req, res) => {
+  try {
+    const { plate, reason, addedBy } = req.body;
+    if (!plate) return res.status(400).json({ ok: false, error: 'Plaka gerekli' });
+    
+    const entry = blacklist.addToBlacklist(plate, reason, addedBy);
+    log('info', `[POST /blacklist] Eklendi: ${plate} - ${reason}`);
+    res.json({ ok: true, entry });
+  } catch (e) {
+    log('error', `[POST /blacklist] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /blacklist/:id - Blacklist'ten çıkar
+app.delete('/blacklist/:id', requireYerelPanel, (req, res) => {
+  try {
+    const removed = blacklist.removeFromBlacklist(req.params.id);
+    if (removed) {
+      log('info', `[DELETE /blacklist/${req.params.id}] Silindi`);
+      res.json({ ok: true, result: 'removed' });
+    } else {
+      res.status(404).json({ ok: false, error: 'Kayıt bulunamadı' });
+    }
+  } catch (e) {
+    log('error', `[DELETE /blacklist/${req.params.id}] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /check-blacklist - Plaka kontrol et
+app.post('/check-blacklist', requireToken, (req, res) => {
+  try {
+    const { plate } = req.body;
+    if (!plate) return res.status(400).json({ ok: false, error: 'Plaka gerekli' });
+    
+    const found = blacklist.isBlacklisted(plate);
+    res.json({ ok: true, blacklisted: !!found, entry: found || null });
+  } catch (e) {
+    log('error', `[POST /check-blacklist] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ============================================================================
+// STATISTICS & ANALYTICS ENDPOINTS
+// ============================================================================
+
+// GET /stats/performance - Güvenlik görevlisi performans istatistikleri
+app.get('/stats/performance', requireToken, (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const { rows } = readAllRecords();
+    
+    let filtered = rows.filter(r => r && !r.deleted);
+    
+    if (startDate) {
+      filtered = filtered.filter(r => r.ts >= parseInt(startDate));
+    }
+    if (endDate) {
+      filtered = filtered.filter(r => r.ts <= parseInt(endDate));
+    }
+    
+    // Görevliye göre grupla
+    const byGuard = {};
+    filtered.forEach(r => {
+      const guard = r.guard || 'Bilinmeyen';
+      if (!byGuard[guard]) {
+        byGuard[guard] = { count: 0, records: [] };
+      }
+      byGuard[guard].count++;
+      byGuard[guard].records.push(r);
+    });
+    
+    // Performans metriklerini hesapla
+    const stats = Object.keys(byGuard).map(guard => {
+      const data = byGuard[guard];
+      const records = data.records;
+      
+      // Site bazında dağılım
+      const bySite = {};
+      records.forEach(r => {
+        const site = r.site || 'Bilinmeyen';
+        bySite[site] = (bySite[site] || 0) + 1;
+      });
+      
+      // Tip bazında dağılım
+      const byType = {};
+      records.forEach(r => {
+        const type = r.type || 'Kurye';
+        byType[type] = (byType[type] || 0) + 1;
+      });
+      
+      return {
+        guard,
+        totalRecords: data.count,
+        sites: bySite,
+        types: byType,
+        avgPerDay: records.length > 0 ? (data.count / Math.max(1, (Date.now() - records[0].ts) / 86400000)).toFixed(1) : 0
+      };
+    });
+    
+    // En aktif görevliyi bul
+    stats.sort((a, b) => b.totalRecords - a.totalRecords);
+    
+    res.json({
+      ok: true,
+      period: { startDate: startDate || null, endDate: endDate || null },
+      totalRecords: filtered.length,
+      guards: stats,
+      topGuard: stats[0] || null
+    });
+  } catch (e) {
+    log('error', `[GET /stats/performance] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /stats/dashboard - Dashboard için özet istatistikler
+app.get('/stats/dashboard', requireToken, (req, res) => {
+  try {
+    const { rows } = readAllRecords();
+    const now = Date.now();
+    const today = new Date().setHours(0, 0, 0, 0);
+    
+    const active = rows.filter(r => r && !r.deleted);
+    const todayRecords = active.filter(r => r.ts >= today);
+    
+    // Şu an içeride kaç araç var (giriş var ama çıkış yok)
+    const inFacility = active.filter(r => !r.exitTime).length;
+    
+    // Tip dağılımı
+    const byType = {};
+    todayRecords.forEach(r => {
+      const type = r.type || 'Kurye';
+      byType[type] = (byType[type] || 0) + 1;
+    });
+    
+    // Site dağılımı
+    const bySite = {};
+    todayRecords.forEach(r => {
+      const site = r.site || 'Bilinmeyen';
+      bySite[site] = (bySite[site] || 0) + 1;
+    });
+    
+    // Son 7 gün trend
+    const last7Days = [];
+    for (let i = 6; i >= 0; i--) {
+      const dayStart = new Date();
+      dayStart.setDate(dayStart.getDate() - i);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(dayStart);
+      dayEnd.setHours(23, 59, 59, 999);
+      
+      const dayRecords = active.filter(r => r.ts >= dayStart.getTime() && r.ts <= dayEnd.getTime());
+      last7Days.push({
+        date: dayStart.toISOString().split('T')[0],
+        count: dayRecords.length
+      });
+    }
+    
+    res.json({
+      ok: true,
+      today: {
+        total: todayRecords.length,
+        byType,
+        bySite
+      },
+      inFacility,
+      totalRecords: active.length,
+      last7Days
+    });
+  } catch (e) {
+    log('error', `[GET /stats/dashboard] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /stats/frequent-plates - Sık görülen plakalar (şüpheli aktivite tespiti)
+app.get('/stats/frequent-plates', requireToken, (req, res) => {
+  try {
+    const { hours = 2, minCount = 3 } = req.query;
+    const { rows } = readAllRecords();
+    const cutoff = Date.now() - (parseInt(hours) * 3600000);
+    
+    const recent = rows.filter(r => r && !r.deleted && r.ts >= cutoff);
+    
+    // Plakaya göre grupla
+    const byPlate = {};
+    recent.forEach(r => {
+      const plate = r.plate || 'Bilinmeyen';
+      if (!byPlate[plate]) {
+        byPlate[plate] = [];
+      }
+      byPlate[plate].push(r);
+    });
+    
+    // Minimum sayıdan fazla giriş yapanları bul
+    const frequent = Object.keys(byPlate)
+      .map(plate => ({
+        plate,
+        count: byPlate[plate].length,
+        records: byPlate[plate],
+        sites: [...new Set(byPlate[plate].map(r => r.site))],
+        lastEntry: Math.max(...byPlate[plate].map(r => r.ts))
+      }))
+      .filter(p => p.count >= parseInt(minCount))
+      .sort((a, b) => b.count - a.count);
+    
+    res.json({
+      ok: true,
+      period: { hours: parseInt(hours), minCount: parseInt(minCount) },
+      suspicious: frequent
+    });
+  } catch (e) {
+    log('error', `[GET /stats/frequent-plates] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
 function lanAdresleri() {
   const out = [];
   try {

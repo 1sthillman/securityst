@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#0a0e0c" />
   <title>Site & Blok Yönetimi · Çınarköy Sync</title>
   <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
   <style>
     .site-grid {
@@ -353,6 +354,8 @@
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
           <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
           <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
+          <a href="/blacklist.html"><span data-ikon="uyari"></span><span>Blacklist</span></a>
+          <a href="/performans.html"><span data-ikon="grafik"></span><span>Performans</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -395,11 +398,13 @@
   </div>
 
   <script src="assets/core.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     document.querySelectorAll("[data-ikon]").forEach(el => el.innerHTML = CK.ikon(el.dataset.ikon));
     
     let allSites = [];
     let selectedSite = null;
+    let map = null; // Leaflet harita instance
     
     /**
      * Google Maps linklerinden veya farklı koordinat formatlarından enlem-boylam çıkarır
@@ -596,12 +601,8 @@
             <input type="number" step="any" class="form-input" id="inputLat" value="${selectedSite.lat || ''}" placeholder="Enlem (41.023...)">
             <input type="number" step="any" class="form-input" id="inputLng" value="${selectedSite.lng || ''}" placeholder="Boylam (29.202...)">
           </div>
-          ${selectedSite.lat && selectedSite.lng 
-            ? `<div class="map-container" style="height:300px;margin-top:10px">
-                 <iframe width="100%" height="100%" frameborder="0" style="border:0" 
-                   src="https://maps.google.com/maps?q=${selectedSite.lat},${selectedSite.lng}&z=17&output=embed"></iframe>
-               </div>`
-            : '<div style="font-size:0.75rem;color:var(--text-2)">Koordinat girildiğinde harita görünecek</div>'}
+          <div id="mapContainer" style="height:400px;margin-top:10px;border-radius:12px;overflow:hidden;border:1px solid var(--border)"></div>
+          <div style="font-size:0.75rem;color:var(--text-2);margin-top:8px">Haritaya tıklayarak koordinat ekleyebilirsiniz</div>
         </div>
         
         <div class="form-section">
@@ -698,14 +699,12 @@
               input.value = coords.single;
               showToast('Koordinat yapıştırıldı', 'success');
             } else if (coords.lat && coords.lng) {
-              // Aynı ünitenin lat ve lng inputlarını bul
               const row = document.querySelector(`.unit-row[data-idx="${idx}"]`);
               const latInput = row.querySelector('[data-field="lat"]');
               const lngInput = row.querySelector('[data-field="lng"]');
               latInput.value = coords.lat;
               lngInput.value = coords.lng;
               
-              // CRITICAL: selectedSite.units içindeki bu ünitenin koordinatlarını güncelle
               if (selectedSite.units && selectedSite.units[idx]) {
                 selectedSite.units[idx].lat = coords.lat;
                 selectedSite.units[idx].lng = coords.lng;
@@ -717,6 +716,93 @@
           } else {
             input.value = pastedText;
           }
+        });
+      });
+      
+      // Leaflet haritasını başlat
+      initializeMap();
+    }
+    
+    function initializeMap() {
+      const mapContainer = document.getElementById('mapContainer');
+      if (!mapContainer) return;
+      
+      // Eski haritayı temizle
+      if (map) {
+        map.remove();
+        map = null;
+      }
+      
+      // Başlangıç koordinatları (site koordinatı varsa onu kullan, yoksa İstanbul)
+      const lat = selectedSite?.lat || 41.0082;
+      const lng = selectedSite?.lng || 28.9784;
+      const zoom = selectedSite?.lat ? 17 : 12;
+      
+      // Haritayı oluştur
+      map = L.map('mapContainer').setView([lat, lng], zoom);
+      
+      // Google Uydu katmanı ekle (API key gerektirmez)
+      L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+        maxZoom: 20,
+        attribution: '© Google'
+      }).addTo(map);
+      
+      // Mevcut marker
+      let currentMarker = null;
+      
+      // Eğer site koordinatı varsa marker ekle
+      if (selectedSite?.lat && selectedSite?.lng) {
+        currentMarker = L.marker([selectedSite.lat, selectedSite.lng]).addTo(map);
+        currentMarker.bindPopup(`<b>${selectedSite.name}</b>`).openPopup();
+      }
+      
+      // Haritaya tıklandığında koordinatları güncelle
+      map.on('click', function(e) {
+        const clickedLat = e.latlng.lat.toFixed(8);
+        const clickedLng = e.latlng.lng.toFixed(8);
+        
+        // Input değerlerini güncelle
+        document.getElementById('inputLat').value = clickedLat;
+        document.getElementById('inputLng').value = clickedLng;
+        
+        // selectedSite'ı güncelle
+        selectedSite.lat = parseFloat(clickedLat);
+        selectedSite.lng = parseFloat(clickedLng);
+        
+        // Eski marker'ı kaldır
+        if (currentMarker) {
+          map.removeLayer(currentMarker);
+        }
+        
+        // Yeni marker ekle
+        currentMarker = L.marker([clickedLat, clickedLng]).addTo(map);
+        currentMarker.bindPopup(`<b>${selectedSite.name}</b><br>Enlem: ${clickedLat}<br>Boylam: ${clickedLng}`).openPopup();
+        
+        showToast('Koordinat seçildi', 'success');
+      });
+      
+      // Input değiştiğinde haritayı güncelle
+      const inputLat = document.getElementById('inputLat');
+      const inputLng = document.getElementById('inputLng');
+      
+      const updateMapFromInputs = () => {
+        const lat = parseFloat(inputLat.value);
+        const lng = parseFloat(inputLng.value);
+        
+        if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+          map.setView([lat, lng], 17);
+          
+          if (currentMarker) {
+            map.removeLayer(currentMarker);
+          }
+          
+          currentMarker = L.marker([lat, lng]).addTo(map);
+          currentMarker.bindPopup(`<b>${selectedSite.name}</b>`).openPopup();
+        }
+      };
+      
+      inputLat.addEventListener('change', updateMapFromInputs);
+      inputLng.addEventListener('change', updateMapFromInputs);
         });
       });
     }

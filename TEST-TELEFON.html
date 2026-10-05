@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Telefon Bağlantı Testi</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        button { padding: 10px 20px; margin: 10px 0; font-size: 16px; }
+        pre { background: #f5f5f5; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .step { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>📱 Telefon Bağlantı Testi</h1>
+    
+    <div class="step">
+        <h2>1️⃣ Server Durumu</h2>
+        <button onclick="testServer()">Server'ı Test Et</button>
+        <div id="server-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>2️⃣ Eşleşme Bilgisi</h2>
+        <button onclick="testEslesme()">Eşleşme Bilgilerini Al</button>
+        <div id="eslesme-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>3️⃣ Telefon Uygulaması</h2>
+        <button onclick="testTelefon()">Telefon Sayfasını Test Et</button>
+        <div id="telefon-result"></div>
+    </div>
+
+    <div class="step">
+        <h2>4️⃣ QR Kod URL'si</h2>
+        <div id="qr-url"></div>
+        <button onclick="openTelefonApp()">Telefon Uygulamasını Aç</button>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://192.168.1.129:4545';
+
+        async function testServer() {
+            const result = document.getElementById('server-result');
+            result.innerHTML = 'Test ediliyor...';
+            
+            try {
+                const res = await fetch(BASE_URL + '/saglik');
+                const data = await res.json();
+                
+                if (data.ok) {
+                    result.innerHTML = `<div class="success">✓ Server çalışıyor! Kayıt sayısı: ${data.kayitSayisi}</div>`;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Server hatası</div>`;
+                }
+            } catch (e) {
+                result.innerHTML = `<div class="error">✗ Bağlantı hatası: ${e.message}</div>`;
+            }
+        }
+
+        async function testEslesme() {
+            const result = document.getElementById('eslesme-result');
+            result.innerHTML = 'Test ediliyor...';
+            
+            try {
+                const res = await fetch(BASE_URL + '/eslesme');
+                const data = await res.json();
+                
+                if (data.ok) {
+                    result.innerHTML = `
+                        <div class="success">✓ Eşleşme bilgisi alındı</div>
+                        <pre>${JSON.stringify({
+                            kaliciAdres: data.kaliciAdres,
+                            qrTam: data.qrTam,
+                            token: data.token ? data.token.substring(0, 20) + '...' : null,
+                            onayBekliyor: data.onayBekliyor,
+                            ilkCihaz: data.ilkCihaz
+                        }, null, 2)}</pre>
+                    `;
+                    
+                    document.getElementById('qr-url').innerHTML = `
+                        <p><strong>QR Kod URL:</strong></p>
+                        <p><code>${data.qrTam}</code></p>
+                    `;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Eşleşme hatası</div>`;
+                }
+            } catch (e) {
+                result.innerHTML = `<div class="error">✗ Bağlantı hatası: ${e.message}</div>`;
+            }
+        }
+
+        async function testTelefon() {
+            const result = document.getElementById('telefon-result');
+            result.innerHTML = 'Test ediliyor...';
+            
+            try {
+                const res = await fetch(BASE_URL + '/telefon/');
+                const text = await res.text();
+                
+                if (res.ok && text.includes('<!DOCTYPE') && text.includes('Çınarköy')) {
+                    result.innerHTML = `
+                        <div class="success">✓ Telefon uygulaması erişilebilir</div>
+                        <p>Sayfa boyutu: ${text.length} byte</p>
+                        <p>Content-Type: ${res.headers.get('content-type')}</p>
+                    `;
+                } else {
+                    result.innerHTML = `<div class="error">✗ Telefon uygulaması hatalı</div><pre>${text.substring(0, 500)}</pre>`;
+                }
+            } catch (e) {
+                result.innerHTML = `<div class="error">✗ Bağlantı hatası: ${e.message}</div>`;
+            }
+        }
+
+        async function openTelefonApp() {
+            // Önce eşleşme bilgisini al
+            const res = await fetch(BASE_URL + '/eslesme');
+            const data = await res.json();
+            
+            if (data.qrTam) {
+                window.open(data.qrTam, '_blank');
+            } else {
+                alert('QR URL bulunamadı');
+            }
+        }
+
+        // Sayfa yüklendiğinde otomatik test
+        window.onload = () => {
+            testServer();
+            setTimeout(() => testEslesme(), 500);
+            setTimeout(() => testTelefon(), 1000);
+        };
+    </script>
+</body>
+</html>
