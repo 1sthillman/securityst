@@ -6,109 +6,41 @@
   <title>Blacklist Yönetimi · Çınarköy Sync</title>
   <link rel="stylesheet" href="assets/theme.css" />
   <style>
-    body { margin: 0; background: var(--bg); color: var(--text); }
-    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    .page-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 32px;
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-    .page-title { font-size: 2rem; font-weight: 700; margin: 0; }
-    .page-subtitle { color: var(--text-2); margin: 4px 0 0 0; font-size: 0.95rem; }
-    
-    .btn {
-      padding: 10px 20px;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.9rem;
-      transition: all 0.2s;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; padding: 8px 16px; font-size: 0.85rem; }
-    .btn:hover { opacity: 0.9; transform: translateY(-1px); }
-    
-    .blacklist-table {
-      background: var(--surface);
-      border-radius: 12px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-    
-    .table-header {
-      display: grid;
-      grid-template-columns: 150px 1fr 180px 180px 100px;
-      gap: 16px;
-      padding: 16px 20px;
-      background: var(--surface-2);
-      font-weight: 700;
-      font-size: 0.85rem;
-      color: var(--text-2);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-    }
-    
-    .table-row {
-      display: grid;
-      grid-template-columns: 150px 1fr 180px 180px 100px;
-      gap: 16px;
-      padding: 16px 20px;
-      border-top: 1px solid var(--border);
-      align-items: center;
-      transition: all 0.2s;
-    }
-    
+    .blacklist-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+    .blacklist-table { background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+    .table-header { display: grid; grid-template-columns: 140px 1fr 160px 160px 100px; gap: 12px; padding: 14px 16px; background: var(--surface-2); font-weight: 700; font-size: 0.8rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .table-row { display: grid; grid-template-columns: 140px 1fr 160px 160px 100px; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); align-items: center; transition: background 0.2s; }
     .table-row:hover { background: var(--surface-2); }
-    
-    .plate {
-      font-weight: 700;
-      font-size: 1.1rem;
-      color: var(--danger);
-      font-family: monospace;
-    }
-    
-    .reason { color: var(--text-2); }
-    .added-by { font-size: 0.85rem; color: var(--text-2); }
-    .date { font-size: 0.85rem; color: var(--text-2); }
-    .empty { text-align: center; padding: 60px 20px; color: var(--text-2); }
-    
-    @media (max-width: 768px) {
-      .table-header, .table-row { grid-template-columns: 1fr; gap: 8px; }
-      .table-header { display: none; }
-      .table-row > div::before {
-        content: attr(data-label);
-        font-weight: 600;
-        color: var(--text-2);
-        display: block;
-        font-size: 0.8rem;
-        margin-bottom: 4px;
-      }
-    }
+    .plate { font-weight: 700; font-size: 1rem; color: var(--danger); font-family: monospace; }
+    .reason { color: var(--text-2); font-size: 0.85rem; }
+    .added-by { font-size: 0.8rem; color: var(--text-2); }
+    .date { font-size: 0.8rem; color: var(--text-2); }
+    .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .btn-primary { background: var(--ok); color: #fff; }
+    .btn-danger { background: var(--danger); color: #fff; padding: 6px 12px; font-size: 0.8rem; }
+    .btn:hover { transform: translateY(-1px); opacity: 0.9; }
+    .empty { text-align: center; padding: 40px 20px; color: var(--text-2); }
   </style>
 </head>
 <body>
-  <div id="navigationPlaceholder"></div>
+  <nav class="gezinme" aria-label="Bölümler" style="padding:12px 24px;background:var(--surface);border-bottom:1px solid var(--line)">
+    <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
+    <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
+    <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+    <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
+    <a href="/blacklist.html"><span data-ikon="uyari"></span><span>Blacklist</span></a>
+    <a href="/performans.html"><span data-ikon="grafik"></span><span>Performans</span></a>
+    <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
+  </nav>
 
-  <div class="container">
-    <div class="page-header">
+  <div class="blacklist-container">
+    <div class="header">
       <div>
-        <h1 class="page-title">Blacklist Yönetimi</h1>
-        <p class="page-subtitle">Yasaklı ve şüpheli plakalar</p>
+        <h1 style="margin:0;font-size:1.6rem;font-weight:700">Blacklist Yönetimi</h1>
+        <p style="color:var(--text-2);margin:6px 0 0 0;font-size:0.9rem">Yasaklı ve şüpheli plakalar</p>
       </div>
-      <button class="btn btn-primary" id="btnAdd">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/>
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Plaka Ekle
-      </button>
+      <button class="btn btn-primary" id="btnAdd">Plaka Ekle</button>
     </div>
 
     <div class="blacklist-table">
@@ -125,16 +57,13 @@
 
   <script src="assets/core.js"></script>
   <script>
-    fetch('assets/navigation.html')
-      .then(r => r.text())
-      .then(html => { document.getElementById('navigationPlaceholder').innerHTML = html; });
-  </script>
-  <script>
+    document.querySelectorAll("[data-ikon]").forEach(el => el.innerHTML = CK.ikon(el.dataset.ikon));
+    
     let allBlacklist = [];
 
     function showToast(msg, type) {
       const toast = document.createElement('div');
-      toast.style.cssText = `position:fixed;bottom:24px;right:24px;padding:14px 20px;border-radius:12px;font-size:0.85rem;font-weight:600;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.4);background:${type === 'success' ? 'var(--ok)' : 'var(--danger)'};color:#fff`;
+      toast.style.cssText = `position:fixed;bottom:24px;right:24px;padding:12px 18px;border-radius:10px;font-size:0.85rem;font-weight:600;z-index:10000;background:${type === 'success' ? 'var(--ok)' : 'var(--danger)'};color:#fff;box-shadow:0 4px 12px rgba(0,0,0,0.3)`;
       toast.textContent = msg;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
@@ -142,13 +71,13 @@
 
     function showModal(title, content, onConfirm) {
       const modal = document.createElement('div');
-      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
-      modal.innerHTML = `<div style="background:var(--surface);border-radius:16px;padding:24px;max-width:500px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,0.5);border:1px solid var(--border)">
-        <div style="font-size:1.1rem;font-weight:700;margin-bottom:16px">${title}</div>
-        <div style="margin-bottom:20px">${content}</div>
-        <div style="display:flex;gap:10px;justify-content:flex-end">
-          <button class="cancel" style="padding:10px 20px;border:none;border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:600">İptal</button>
-          <button class="confirm" style="padding:10px 20px;border:none;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">Tamam</button>
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(3px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+      modal.innerHTML = `<div style="background:var(--surface);border-radius:12px;padding:20px;max-width:450px;width:100%;border:1px solid var(--line)">
+        <div style="font-size:1rem;font-weight:700;margin-bottom:14px">${title}</div>
+        <div style="margin-bottom:18px">${content}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="cancel" style="padding:8px 16px;border:none;border-radius:8px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:600;font-size:0.85rem">İptal</button>
+          <button class="confirm" style="padding:8px 16px;border:none;border-radius:8px;background:var(--ok);color:#fff;cursor:pointer;font-weight:600;font-size:0.85rem">Tamam</button>
         </div></div>`;
       document.body.appendChild(modal);
       modal.querySelector('.cancel').onclick = () => modal.remove();
@@ -173,30 +102,25 @@
     function renderList() {
       const container = document.getElementById('listContainer');
       if (!allBlacklist.length) {
-        container.innerHTML = '<div class="empty"><h3>Blacklist boş</h3><p>Henüz yasaklı plaka eklenmemiş</p></div>';
+        container.innerHTML = '<div class="empty"><h3 style="margin:0 0 8px 0">Blacklist boş</h3><p style="margin:0">Henüz yasaklı plaka eklenmemiş</p></div>';
         return;
       }
 
       container.innerHTML = allBlacklist.map(b => `
         <div class="table-row">
-          <div class="plate" data-label="Plaka">${CK.kacis(b.plate)}</div>
-          <div class="reason" data-label="Sebep">${CK.kacis(b.reason)}</div>
-          <div class="added-by" data-label="Ekleyen">${CK.kacis(b.addedBy)}</div>
-          <div class="date" data-label="Tarih">${new Date(b.addedAt).toLocaleString('tr-TR')}</div>
+          <div class="plate">${CK.kacis(b.plate)}</div>
+          <div class="reason">${CK.kacis(b.reason)}</div>
+          <div class="added-by">${CK.kacis(b.addedBy)}</div>
+          <div class="date">${new Date(b.addedAt).toLocaleString('tr-TR', {day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'})}</div>
           <div>
-            <button class="btn btn-danger" onclick="removeBlacklist('${b.id}', '${CK.kacis(b.plate)}')">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              </svg>
-            </button>
+            <button class="btn btn-danger" onclick="removeBlacklist('${b.id}', '${CK.kacis(b.plate)}')">Sil</button>
           </div>
         </div>
       `).join('');
     }
 
     async function removeBlacklist(id, plate) {
-      showModal('Blacklist\'ten Çıkar', `<div style="color:var(--text-2)">Bu plakayı blacklist'ten çıkarmak istediğinize emin misiniz?</div><div style="background:var(--surface-2);padding:12px;border-radius:8px;margin:12px 0;font-weight:700;font-size:1.1rem;font-family:monospace;color:var(--danger)">${plate}</div>`, async () => {
+      showModal('Blacklist\'ten Çıkar', `<div style="color:var(--text-2);font-size:0.9rem">Bu plakayı blacklist'ten çıkarmak istediğinize emin misiniz?</div><div style="background:var(--surface-2);padding:10px;border-radius:8px;margin:10px 0;font-weight:700;font-size:1rem;font-family:monospace;color:var(--danger)">${plate}</div>`, async () => {
         try {
           const res = await CK.istek('/blacklist/' + id, { method: 'DELETE' });
           const data = await res.json();
@@ -214,13 +138,13 @@
 
     document.getElementById('btnAdd').addEventListener('click', () => {
       const modal = showModal('Blacklist\'e Ekle', `
-        <div style="margin-bottom:12px">
-          <label style="display:block;margin-bottom:6px;font-weight:600;font-size:0.9rem">Plaka</label>
-          <input type="text" id="inputPlate" placeholder="34ABC123" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:1rem" />
+        <div style="margin-bottom:10px">
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:0.85rem">Plaka</label>
+          <input type="text" id="inputPlate" placeholder="34ABC123" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:0.9rem" />
         </div>
-        <div style="margin-bottom:12px">
-          <label style="display:block;margin-bottom:6px;font-weight:600;font-size:0.9rem">Sebep</label>
-          <input type="text" id="inputReason" placeholder="Şüpheli araç" style="width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);color:var(--text);font-size:1rem" />
+        <div style="margin-bottom:10px">
+          <label style="display:block;margin-bottom:4px;font-weight:600;font-size:0.85rem">Sebep</label>
+          <input type="text" id="inputReason" placeholder="Şüpheli araç" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-2);color:var(--text);font-size:0.9rem" />
         </div>
       `, async () => {
         const plate = document.getElementById('inputPlate').value.trim().toUpperCase();
