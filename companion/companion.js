@@ -2136,6 +2136,25 @@ app.delete('/site/:id', requireYerelPanel, async (req, res) => {
 });
 
 // ============================================================================
+// HELPER FUNCTIONS FOR STATISTICS
+// ============================================================================
+
+function readAllRecords() {
+  try {
+    if (!fs.existsSync(LOG_PATH)) return { rows: [] };
+    const content = fs.readFileSync(LOG_PATH, 'utf8');
+    const lines = content.trim().split('\n').filter(l => l);
+    const rows = lines.map(line => {
+      try { return JSON.parse(line); } catch { return null; }
+    }).filter(r => r);
+    return { rows };
+  } catch (e) {
+    log('error', `[readAllRecords] Hata: ${e.message}`);
+    return { rows: [] };
+  }
+}
+
+// ============================================================================
 // BLACKLIST ENDPOINTS
 // ============================================================================
 const blacklist = require('./blacklist.js');
