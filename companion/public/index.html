@@ -7,6 +7,257 @@
   <title>Panel · Çınarköy Sync</title>
   <link rel="stylesheet" href="assets/theme.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    .qr-kart {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    
+    .qr-kutu {
+      width: 180px;
+      height: 180px;
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 20px -10px rgba(0,0,0,0.4);
+      flex-shrink: 0;
+    }
+    
+    .qr-kutu svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    
+    .qr-bekle {
+      font-size: 0.8rem;
+      color: #999;
+      text-align: center;
+      padding: 20px;
+      line-height: 1.5;
+    }
+    
+    .qr-aciklama {
+      margin: 0;
+      font-size: 0.88rem;
+      line-height: 1.6;
+      color: var(--text-2);
+      text-align: center;
+      max-width: 280px;
+    }
+    
+    .qr-aciklama b {
+      color: var(--text);
+      font-weight: 600;
+    }
+    
+    .qr-adres-box {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 14px;
+      width: 100%;
+      max-width: 280px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    
+    .qr-adres-label {
+      font-size: 0.75rem;
+      color: var(--text-3);
+    }
+    
+    .qr-adres-value {
+      font-family: var(--mono);
+      font-size: 0.8rem;
+      color: var(--text);
+      font-weight: 600;
+    }
+    
+    .sistem-adimlar {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 10px;
+    }
+    
+    .sistem-adim {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: all 0.2s;
+    }
+    
+    .sistem-adim:hover {
+      border-color: var(--accent-line);
+      background: var(--surface);
+    }
+    
+    .sistem-adim-icon {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent-line);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    
+    .sistem-adim-text {
+      flex: 1;
+      font-size: 0.85rem;
+      line-height: 1.5;
+      color: var(--text-2);
+    }
+    
+    .sistem-adim-text b {
+      color: var(--text);
+      font-weight: 600;
+    }
+    
+    .editable-row {
+      cursor: pointer;
+    }
+    
+    .editable-row:hover {
+      background: var(--surface-2) !important;
+    }
+    
+    .editing-row {
+      background: var(--accent-soft) !important;
+    }
+    
+    .editable-cell {
+      position: relative;
+    }
+    
+    .cell-input {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    
+    .cell-select {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.75rem;
+    }
+    
+    .edit-actions {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    
+    .edit-action-btn {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    
+    .edit-action-btn.save {
+      background: var(--ok);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
+    }
+    
+    .edit-action-btn.save:hover {
+      background: #22c55e;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+    }
+    
+    .edit-action-btn.cancel {
+      background: var(--surface);
+      color: var(--text-2);
+      border: 1px solid var(--line);
+    }
+    
+    .edit-action-btn.cancel:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+      transform: translateY(-1px);
+    }
+    
+    .edit-action-btn:active {
+      transform: translateY(0);
+    }
+    
+    .edit-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    
+    .tur-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1px solid;
+      cursor: inherit;
+    }
+    
+    .tur-kurye {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #3b82f6;
+    }
+    
+    .tur-ziyaretci {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.3);
+      color: #22c55e;
+    }
+    
+    .tur-servis {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: rgba(168, 85, 247, 0.3);
+      color: #a855f7;
+    }
+    
+    .tur-tedarikci {
+      background: rgba(249, 115, 22, 0.1);
+      border-color: rgba(249, 115, 22, 0.3);
+      color: #f97316;
+    }
+  </style>
 </head>
 <body>
   <div class="ambient"></div>
@@ -25,7 +276,8 @@
         <nav class="gezinme" aria-label="Bölümler">
           <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
-          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -63,94 +315,138 @@
         <section class="izgara-2">
           <div class="kart">
             <div class="kart-bas">
-              <h2>Son hareketler</h2>
+              <h2>Telefonu Bağla</h2>
+              <a class="dugme sade kucuk" href="/eslesme.html">
+                <span data-ikon="esle"></span>
+                <span>Detaylı Eşleşme</span>
+              </a>
+            </div>
+            <div class="kart-govde qr-kart">
+              <div class="qr-kutu" id="qrKutu">
+                <div class="qr-bekle" id="qrBekle">QR hazırlanıyor...</div>
+              </div>
+              <p class="qr-aciklama">
+                Telefonun kamerasıyla bu kodu okut. <b>Adres ve anahtar kodun içindedir</b> — hiçbir şey yazmanıza gerek yok.
+              </p>
+              <div class="qr-adres-box">
+                <span class="qr-adres-label">Adres</span>
+                <span class="qr-adres-value" id="qrAdres">—</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas">
+              <h2>Sistem Durumu</h2>
+              <span class="rozet" id="surum">—</span>
+            </div>
+            <div class="kart-govde">
+              <ul class="sistem-adimlar">
+                <li class="sistem-adim">
+                  <div class="sistem-adim-icon">1</div>
+                  <div class="sistem-adim-text"><b>Servis aktif</b> — Arka planda çalışıyor, otomatik başlatma açık</div>
+                </li>
+                <li class="sistem-adim">
+                  <div class="sistem-adim-icon">2</div>
+                  <div class="sistem-adim-text"><b>Veri güvenli</b> — Kayıtlar günlük dosyasına yazılır, Excel oradan türetilir</div>
+                </li>
+                <li class="sistem-adim">
+                  <div class="sistem-adim-icon">3</div>
+                  <div class="sistem-adim-text"><b>Telefon hazır</b> — QR kod ile tek adımda bağlanır</div>
+                </li>
+              </ul>
+              <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
+                <a class="dugme kucuk" href="/eslesme.html">
+                  <span data-ikon="esle"></span>
+                  <span>Telefon Bağla</span>
+                </a>
+                <button class="dugme sade kucuk" type="button" id="yenile">
+                  <span data-ikon="yenile"></span>
+                  <span>Yenile</span>
+                </button>
+              </div>
+              <div class="qr-adres-box" style="margin-top:14px;max-width:100%">
+                <span class="qr-adres-label">Son yazma</span>
+                <span class="qr-adres-value" id="sonYazma">—</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="izgara-2" style="margin-top:24px">
+          <div class="kart" style="grid-column: 1 / -1">
+            <div class="kart-bas">
+              <h2>Bugünkü Site/Blok Girişleri</h2>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="panelDateFilter" style="padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-solid);color:var(--text);font-size:0.8rem;font-weight:600">
+                  <option value="today">Bugün</option>
+                  <option value="yesterday">Dün</option>
+                  <option value="last7">Son 7 Gün</option>
+                  <option value="thisMonth">Bu Ay</option>
+                </select>
+                <span class="rozet" id="toplamBugun">0 giriş</span>
+              </div>
+            </div>
+            <div class="kart-govde">
+              <div id="siteStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px">
+                <div class="iskelet" style="height:80px;border-radius:12px"></div>
+                <div class="iskelet" style="height:80px;border-radius:12px"></div>
+                <div class="iskelet" style="height:80px;border-radius:12px"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="izgara-2">
+          <div class="kart" style="grid-column: 1 / -1">
+            <div class="kart-bas">
+              <h2>Son Kayıtlar</h2>
               <div class="canli" id="canli"><span class="nokta"></span><span>Bağlanıyor</span></div>
             </div>
-            <div class="tablo-sarmal" style="max-height:420px;overflow-y:auto">
+            <div class="tablo-sarmal" style="max-height:450px;overflow-y:auto">
               <table>
                 <thead>
-                  <tr><th>Zaman</th><th>Plaka</th><th>Kurye</th><th>Daire</th><th>Firma</th></tr>
+                  <tr>
+                    <th>Tarih</th>
+                    <th>Saat</th>
+                    <th>Plaka</th>
+                    <th>Tür</th>
+                    <th>Ad Soyad</th>
+                    <th>Firma</th>
+                    <th>Blok</th>
+                    <th>Daire</th>
+                    <th>Görevli</th>
+                    <th>Not</th>
+                    <th></th>
+                  </tr>
                 </thead>
                 <tbody id="hareketler">
-                  <tr><td colspan="5"><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div></td></tr>
+                  <tr><td colspan="11"><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div></td></tr>
                 </tbody>
               </table>
             </div>
             <div class="sayfalama">
               <span class="bosluk"></span>
-              <a class="dugme sade kucuk" href="/kayitlar.html">Tümünü gör<span data-ikon="ok"></span></a>
-            </div>
-          </div>
-
-          <div class="kart">
-            <div class="kart-bas">
-              <h2>Telefonu eşleştir</h2>
-              <a class="dugme sade kucuk" href="/eslesme.html">Eşleşme<span data-ikon="esle"></span></a>
-            </div>
-            <div class="kart-govde esleme-kart">
-              <div class="qr-kutu" id="qrKutu">
-                <div class="qr-bekle" id="qrBekle">QR hazırlanıyor…</div>
-              </div>
-              <p class="qr-aciklama">
-                Telefonun kamerasıyla bu kodu okutun. <b>Adres ve anahtar kodun
-                içindedir</b> — hiçbir şey yazmanıza gerek yoktur.
-              </p>
-              <div class="alt-bilgi">
-                <span>Telefon adresi</span>
-                <span class="mono" id="qrAdres">—</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="kart">
-            <div class="kart-bas">
-              <h2>Sistem durumu</h2>
-              <span class="rozet" id="surum">—</span>
-            </div>
-            <div class="kart-govde">
-              <ol class="adimlar">
-                <li><span><b>Servis ayakta</b> — arka planda çalışıyor, otomatik yeniden başlatma açık.</span></li>
-                <li><span><b>Veri katmanı</b> — kayıtlar önce günlük dosyasına yazılır, Excel oradan türetilir. Excel silinse bile kendini onarır.</span></li>
-                <li><span><b>Telefon bağlantısı</b> — eşleşme sayfasındaki QR kodla tek adımda eşleşir.</span></li>
-              </ol>
-              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-                <a class="dugme kucuk" href="/eslesme.html"><span data-ikon="esle"></span>Eşleştir</a>
-                <button class="dugme sade kucuk" type="button" id="yenile"><span data-ikon="yenile"></span>Yenile</button>
-              </div>
-              <div class="alt-bilgi" style="margin-top:14px">
-                <span>Son yazma</span>
-                <span class="mono" id="sonYazma">—</span>
-              </div>
+              <a class="dugme sade kucuk" href="/kayitlar.html">
+                <span>Tüm Kayıtlar</span>
+                <span data-ikon="ok"></span>
+              </a>
             </div>
           </div>
         </section>
       </div>
 
       <footer class="alt-bilgi kabuk">
-        <span>Çınarköy Güvenlik · veriler bu bilgisayarda saklanır</span>
+        <span>Çınarköy Güvenlik · Tüm veriler yerel</span>
         <span class="mono" id="surumAlt">—</span>
       </footer>
     </main>
   </div>
 
-  <style>
-    /* Eslesme QR karti. Kutu sabit boyutta olmali ki QR her cihazda
-       okunabilir kalsin; icerik kirpilmez (object-fit yerine sW). */
-    .esleme-kart{ display:flex; flex-direction:column; align-items:flex-start; gap:12px; }
-    .qr-kutu{ width:196px; height:196px; background:#fff; border-radius:14px;
-      padding:10px; display:flex; align-items:center; justify-content:center;
-      overflow:hidden; box-shadow:0 6px 20px -12px rgba(0,0,0,.5); }
-    .qr-kutu svg{ width:100%; height:100%; display:block; }
-    .qr-bekle{ font-size:.78rem; color:#555; text-align:center; padding:10px;
-      line-height:1.55; }
-    .qr-aciklama{ margin:0; font-size:.85rem; line-height:1.65; }
-    .qr-aciklama b{ color:inherit; }
-  </style>
   <script src="assets/core.js"></script>
   <script>
   (function () {
     "use strict";
-    // İkon yer tutucularını doldur
     document.querySelectorAll("[data-ikon]").forEach(function (el) {
       el.innerHTML = CK.ikon(el.dataset.ikon);
     });
@@ -158,29 +454,178 @@
     var hareketler = document.getElementById("hareketler");
     var canli = document.getElementById("canli");
     var yenilenen = [];
+    var editingRow = null;
+
+    function getTurClass(tur) {
+      var t = (tur || "").toLowerCase();
+      if (t.includes("ziyaret")) return { class: "tur-ziyaretci", label: "Ziyaretçi" };
+      if (t.includes("servis")) return { class: "tur-servis", label: "Servis" };
+      if (t.includes("tedarik")) return { class: "tur-tedarikci", label: "Tedarikçi" };
+      return { class: "tur-kurye", label: "Kurye" };
+    }
 
     function satir(kayit, yeniMi) {
       var tr = document.createElement("tr");
-      if (yeniMi) tr.className = "yeni";
+      tr.className = "editable-row";
+      if (yeniMi) tr.className += " yeni";
       if (kayit.deleted) tr.className += " silindi";
+      tr.dataset.id = kayit.id || kayit.uid;
+      
+      var turInfo = getTurClass(kayit.type || kayit.tur);
+      
       tr.innerHTML =
+        '<td class="mono dim">' + CK.kacis(kayit.ts ? CK.tarihTR(kayit.ts) : kayit.date || "") + "</td>" +
         '<td class="mono dim">' + CK.kacis(kayit.ts ? CK.saatTR(kayit.ts) : kayit.time || "") + "</td>" +
-        '<td class="plaka">' + CK.kacis(kayit.plate) + "</td>" +
-        "<td>" + CK.kacis(kayit.courier) + "</td>" +
-        '<td class="dim">' + CK.kacis((kayit.site || "") + " " + (kayit.unit || "")) + "</td>" +
-        '<td class="dim">' + CK.kacis(kayit.company || "") + "</td>";
+        '<td class="plaka editable-cell" data-field="plate">' + CK.kacis(kayit.plate) + "</td>" +
+        '<td class="editable-cell" data-field="type"><span class="tur-badge ' + turInfo.class + '">' + turInfo.label + '</span></td>' +
+        '<td class="editable-cell" data-field="courier">' + CK.kacis(kayit.courier || kayit.name || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="company">' + CK.kacis(kayit.company || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="site">' + CK.kacis(kayit.site || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="unit">' + CK.kacis(kayit.unit || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="guard">' + CK.kacis(kayit.guard || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="note" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + CK.kacis(kayit.note || "") + "</td>" +
+        '<td></td>';
+      
       return tr;
+    }
+
+    function makeEditable(row) {
+      if (editingRow === row) return;
+      if (editingRow) restoreRow(editingRow);
+      
+      editingRow = row;
+      row.classList.add('editing-row');
+      
+      var kayitId = row.dataset.id;
+      var kayit = yenilenen.find(function(k) { return (k.id || k.uid) === kayitId; });
+      if (!kayit) return;
+
+      var cells = row.querySelectorAll('.editable-cell');
+      cells.forEach(function(cell) {
+        var field = cell.dataset.field;
+        var value = kayit[field] || (field === 'courier' ? kayit.name : '') || '';
+        cell.dataset.original = cell.innerHTML;
+        
+        if (field === 'type') {
+          var turInfo = getTurClass(kayit.type || kayit.tur);
+          cell.innerHTML = '<select class="cell-select">' +
+            '<option value="Kurye"' + (turInfo.label === 'Kurye' ? ' selected' : '') + '>Kurye</option>' +
+            '<option value="Ziyaretçi"' + (turInfo.label === 'Ziyaretçi' ? ' selected' : '') + '>Ziyaretçi</option>' +
+            '<option value="Servis"' + (turInfo.label === 'Servis' ? ' selected' : '') + '>Servis</option>' +
+            '<option value="Tedarikçi"' + (turInfo.label === 'Tedarikçi' ? ' selected' : '') + '>Tedarikçi</option>' +
+          '</select>';
+        } else if (field === 'note') {
+          cell.innerHTML = '<input type="text" class="cell-input" value="' + CK.kacis(value) + '" style="width:140px">';
+        } else {
+          cell.innerHTML = '<input type="text" class="cell-input" value="' + CK.kacis(value) + '">';
+        }
+      });
+      
+      var lastCell = row.querySelector('td:last-child');
+      lastCell.dataset.original = lastCell.innerHTML;
+      lastCell.innerHTML = '<div class="edit-actions">' +
+        '<button class="edit-action-btn save">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>' +
+        '</button>' +
+        '<button class="edit-action-btn cancel">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+        '</button>' +
+      '</div>';
+      
+      lastCell.querySelector('.save').addEventListener('click', function(e) {
+        e.stopPropagation();
+        saveEdit(row, kayit);
+      });
+      
+      lastCell.querySelector('.cancel').addEventListener('click', function(e) {
+        e.stopPropagation();
+        restoreRow(row);
+        editingRow = null;
+      });
+    }
+
+    function restoreRow(row) {
+      if (!row) return;
+      row.classList.remove('editing-row');
+      
+      var cells = row.querySelectorAll('.editable-cell');
+      cells.forEach(function(cell) {
+        if (cell.dataset.original) {
+          cell.innerHTML = cell.dataset.original;
+          delete cell.dataset.original;
+        }
+      });
+      
+      var lastCell = row.querySelector('td:last-child');
+      if (lastCell.dataset.original) {
+        lastCell.innerHTML = lastCell.dataset.original;
+        delete lastCell.dataset.original;
+      }
+    }
+
+    function saveEdit(row, originalKayit) {
+      var updated = {
+        id: originalKayit.id || originalKayit.uid,
+        plate: row.querySelector('[data-field="plate"] input').value.trim(),
+        type: row.querySelector('[data-field="type"] select').value,
+        courier: row.querySelector('[data-field="courier"] input').value.trim(),
+        company: row.querySelector('[data-field="company"] input').value.trim(),
+        site: row.querySelector('[data-field="site"] input').value.trim(),
+        unit: row.querySelector('[data-field="unit"] input').value.trim(),
+        guard: row.querySelector('[data-field="guard"] input').value.trim(),
+        note: row.querySelector('[data-field="note"] input').value.trim(),
+        ts: originalKayit.ts,
+        date: originalKayit.date,
+        time: originalKayit.time,
+        updatedAt: Date.now()
+      };
+
+      CK.istek('/kayit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok || d.result === 'updated') {
+          CK.bildir('Kayıt güncellendi', 'olumlu');
+          editingRow = null;
+          CK.istek("/kayitlar?limit=25")
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              yenilenen = (d.records || []).slice();
+              tabloyuCiz(yenilenen);
+            });
+        } else {
+          CK.bildir('Hata: ' + (d.error || 'Bilinmeyen hata'), 'hatali');
+          restoreRow(row);
+          editingRow = null;
+        }
+      })
+      .catch(function(e) {
+        CK.bildir('Güncelleme başarısız', 'hatali');
+        restoreRow(row);
+        editingRow = null;
+      });
     }
 
     function tabloyuCiz(yeniler) {
       hareketler.innerHTML = "";
       if (!yeniler.length) {
         hareketler.innerHTML =
-          '<tr><td colspan="5"><div class="bos">' + CK.ikon("tablo") +
+          '<tr><td colspan="11"><div class="bos">' + CK.ikon("tablo") +
           "<p>Henüz kayıt yok. Telefondan ilk girişi yaptığınızda burada anında görünecek.</p></div></td></tr>";
         return;
       }
-      yeniler.slice(0, 40).forEach(function (k) { hareketler.appendChild(satir(k)); });
+      yeniler.slice(0, 40).forEach(function (k) { 
+        var row = satir(k);
+        hareketler.appendChild(row);
+        
+        row.addEventListener('click', function(e) {
+          if (e.target.closest('input, select, button')) return;
+          makeEditable(row);
+        });
+      });
     }
 
     var canliBag = new CK.Canli(function () {
@@ -188,11 +633,9 @@
       this.durumTetik = function (d) { durumCiz(d); };
       self.izle(function (aktif, veri) {
         canli.className = "canli " + (aktif ? "aktif" : "hata");
-        canli.lastElementChild.textContent = aktif ? "Canlı akış" : "Bağlantı bekleniyor";
+        canli.lastElementChild.textContent = aktif ? "Canlı" : "Bağlantı bekleniyor";
         if (veri && veri.tip) {
           var yeni = veri.tip === "toplu" ? (veri.kayitlar || []) : [veri.kayit];
-          // Aynı kayıt hem canlı akıştan hem yedek yoklamadan gelebilir.
-          // Kimliğe göre elenir: kullanıcı aynı satırı iki kez görmemeli.
           var mevcut = {};
           yenilenen.forEach(function (k) { if (k && (k.uid || k.id)) mevcut[k.uid || k.id] = 1; });
           var gercek = yeni.filter(function (k) {
@@ -205,16 +648,13 @@
           });
           yenilenen = gercek.concat(yenilenen).slice(0, 40);
           tabloyuCiz(yenilenen);
+          loadSiteStats(); // Real-time güncelleme
         }
       });
       self.tazele();
       CK.istek("/kayitlar?limit=25")
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          // ÖLÇÜLEN HATA: burada yalnızca tabloyuCiz deniyordu, liste
-          // değişkeni boş kalıyordu. İlk canlı kayıtta tablo sadece o tek
-          // kaydı gösteriyor, önceki 25 kayıt kayboluyordu. Tek kaynak
-          // kullanılır: hem ilk yükleme hem akış aynı listeyi besler.
           yenilenen = (d.records || []).slice();
           tabloyuCiz(yenilenen);
         })
@@ -222,10 +662,6 @@
     });
     canliBag.baglan();
 
-    /* ---- Eslesme QR'i ---------------------------------------------- */
-    /* QR sunucuda uretiliyor ve KURULUM ANAHTARINI iceriyor. Cozuldu ve
-       dogrulandi (jsQR): http://<adres>#token=<64 haneli>. Telefon okutunca
-       adres ve anahtar ikisi gelir; ag istegi gerekmez. */
     function qrYukle() {
       var kutu = document.getElementById("qrKutu");
       var bekle = document.getElementById("qrBekle");
@@ -233,20 +669,131 @@
       CK.istek("/eslesme")
         .then(function (r) { return r.json(); })
         .then(function (d) {
-          if (!d || !d.qrSvg) throw new Error("sunucu QR uretmedi");
+          if (!d || !d.qrSvg) throw new Error("QR oluşturulamadı");
           kutu.innerHTML = d.qrSvg;
           var a = document.getElementById("qrAdres");
-          if (a) a.textContent = d.kaliciAdres || d.qrAdres || "-";
+          if (a) {
+            var adres = d.kaliciAdres || d.qrAdres || "-";
+            a.textContent = adres.replace(/^https?:\/\//, '');
+          }
         })
         .catch(function (e) {
-          /* SESSIZ HATA YUTMA YOK: sebep ekrana yazilir. */
-          if (bekle) {
-            bekle.textContent = "QR uretilemedi: " + ((e && e.message) || e) +
-              " — Eslesme sayfasini acin.";
-          }
+          if (bekle) bekle.textContent = "QR oluşturulamadı — Eşleşme sayfasını açın";
         });
     }
     qrYukle();
+
+    // Site/Blok İstatistikleri
+    var panelDateFilter = 'today';
+    
+    document.getElementById('panelDateFilter').addEventListener('change', function(e) {
+      panelDateFilter = e.target.value;
+      loadSiteStats();
+    });
+    
+    function loadSiteStats() {
+      Promise.all([
+        CK.istek('/siteler').then(r => r.json()),
+        CK.istek('/kayitlar').then(r => r.json())
+      ]).then(function(results) {
+        var sitesData = results[0];
+        var recordsData = results[1];
+        
+        if (!sitesData.ok || !recordsData.ok) {
+          document.getElementById('siteStats').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2)">İstatistikler yüklenemedi</div>';
+          return;
+        }
+        
+        var sites = sitesData.sites || [];
+        var records = recordsData.records || [];
+        
+        // Tarih filtresini uygula
+        var filteredRecords = filterRecordsByDate(records, panelDateFilter);
+        
+        // Site bazında grupla
+        var siteMap = {};
+        sites.forEach(function(site) {
+          siteMap[site.name] = { name: site.name, count: 0, street: site.street || '' };
+        });
+        
+        filteredRecords.forEach(function(r) {
+          var siteName = r.site || 'Bilinmeyen';
+          if (!siteMap[siteName]) {
+            siteMap[siteName] = { name: siteName, count: 0, street: '' };
+          }
+          siteMap[siteName].count++;
+        });
+        
+        var siteStats = Object.values(siteMap).sort(function(a, b) {
+          return b.count - a.count;
+        });
+        
+        var dateLabel = panelDateFilter === 'today' ? 'Bugün' : 
+                       panelDateFilter === 'yesterday' ? 'Dün' : 
+                       panelDateFilter === 'last7' ? 'Son 7 Gün' : 
+                       panelDateFilter === 'thisMonth' ? 'Bu Ay' : 'Bugün';
+        
+        document.getElementById('toplamBugun').textContent = filteredRecords.length + ' giriş';
+        
+        var container = document.getElementById('siteStats');
+        if (siteStats.length === 0 || filteredRecords.length === 0) {
+          container.innerHTML = '<div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--text-2)">' + dateLabel + ' giriş kaydı yok</div>';
+          return;
+        }
+        
+        container.innerHTML = siteStats.map(function(site) {
+          if (site.count === 0) return '';
+          return '<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:12px;padding:16px;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s;cursor:pointer" ' +
+            'onclick="window.location.href=\'/kayitlar.html?site=' + encodeURIComponent(site.name) + '\'">' +
+            '<div>' +
+              '<div style="font-weight:700;font-size:0.95rem;color:var(--text);margin-bottom:4px">' + CK.kacis(site.name) + '</div>' +
+              (site.street ? '<div style="font-size:0.75rem;color:var(--text-2)">' + CK.kacis(site.street) + '</div>' : '') +
+            '</div>' +
+            '<div style="font-size:1.8rem;font-weight:700;color:var(--accent)">' + site.count + '</div>' +
+          '</div>';
+        }).join('');
+      }).catch(function(e) {
+        console.error('Site stats error:', e);
+        document.getElementById('siteStats').innerHTML = '<div style="padding:20px;text-align:center;color:var(--danger)">Hata: ' + e.message + '</div>';
+      });
+    }
+    
+    function filterRecordsByDate(records, filter) {
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      return records.filter(function(r) {
+        if (!r) return false;
+        var rDate;
+        if (r.ts) {
+          rDate = new Date(typeof r.ts === 'string' ? r.ts : r.ts);
+        } else if (r.date) {
+          var parts = r.date.split('.');
+          rDate = new Date(parts[2], parts[1]-1, parts[0]);
+        } else {
+          return false;
+        }
+        
+        switch(filter) {
+          case 'today':
+            return rDate >= today;
+          case 'yesterday':
+            var yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            return rDate >= yesterday && rDate < today;
+          case 'last7':
+            var last7 = new Date(today);
+            last7.setDate(last7.getDate() - 7);
+            return rDate >= last7;
+          case 'thisMonth':
+            return rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear();
+          default:
+            return rDate >= today;
+        }
+      });
+    }
+    
+    loadSiteStats();
 
     function durumCiz(d) {
       if (!d) return;
@@ -258,13 +805,10 @@
       lg.textContent = CK.bayt(d.logBytes != null ? d.logBytes : (d.dosyalar && d.dosyalar.logBytes));
       document.getElementById("sonYazma").textContent = d.sonYazma ? CK.tamZaman(d.sonYazma) : "henüz yok";
       if (d.surum) {
-        document.getElementById("surum").textContent = "sürüm " + d.surum;
-        document.getElementById("surumAlt").textContent = "sürüm " + d.surum;
+        document.getElementById("surum").textContent = "v" + d.surum;
+        document.getElementById("surumAlt").textContent = "v" + d.surum;
       }
       if (d.uptimeSn != null) document.getElementById("sSure").textContent = CK.sureTR(d.uptimeSn);
-      if (d.sonHata) {
-        CK.bildir("Sunucu uyarısı: " + d.sonHata, "hatali");
-      }
     }
 
     document.getElementById("yenile").addEventListener("click", function () {
@@ -272,7 +816,11 @@
       qrYukle();
       CK.istek("/kayitlar?limit=25")
         .then(function (r) { return r.json(); })
-        .then(function (d) { yenilenen = (d.records || []).slice(); tabloyuCiz(yenilenen); CK.bildir("Liste yenilendi", "olumlu"); })
+        .then(function (d) { 
+          yenilenen = (d.records || []).slice(); 
+          tabloyuCiz(yenilenen); 
+          CK.bildir("Liste yenilendi", "olumlu"); 
+        })
         .catch(function () { CK.bildir("Yenilenemedi", "hatali"); });
     });
   })();

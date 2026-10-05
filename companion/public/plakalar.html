@@ -1,0 +1,788 @@
+<!doctype html>
+<html lang="tr" data-tema="koyu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e0c" />
+  <title>Plakalar · Çınarköy Sync</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    body { margin: 0; padding: 0; font-family: 'Inter', -apple-system, system-ui, sans-serif; }
+    
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    
+    .search-box {
+      flex: 1;
+      min-width: 200px;
+      position: relative;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.5;
+    }
+    
+    .filter-select {
+      padding: 10px 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font-size: 0.85rem;
+      min-width: 140px;
+    }
+    
+    .btn-add {
+      padding: 10px 18px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+    
+    .btn-add:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(255, 176, 87, 0.3);
+    }
+    
+    .table-container {
+      padding: 24px;
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    
+    th {
+      background: var(--surface-2);
+      padding: 14px 16px;
+      text-align: left;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--line);
+    }
+    
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      font-size: 0.85rem;
+    }
+    
+    .plate-cell {
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--accent);
+    }
+    
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .badge-kurye { background: #3b82f6; color: #fff; }
+    .badge-ziyaretci { background: #8b5cf6; color: #fff; }
+    .badge-servis { background: #f59e0b; color: #fff; }
+    .badge-tedarikci { background: #10b981; color: #fff; }
+    
+    .editable-row {
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .editable-row:hover {
+      background: var(--surface-2) !important;
+    }
+    
+    .editing-row {
+      background: var(--accent-soft) !important;
+    }
+    
+    .cell-input {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    
+    .cell-select {
+      width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.75rem;
+    }
+    
+    .edit-actions {
+      display: flex;
+      gap: 6px;
+    }
+    
+    .btn-icon {
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    
+    .btn-save {
+      background: var(--ok);
+      color: #fff;
+    }
+    
+    .btn-save:hover {
+      background: #22c55e;
+      transform: scale(1.1);
+    }
+    
+    .btn-cancel {
+      background: var(--surface-2);
+      color: var(--text-2);
+    }
+    
+    .btn-cancel:hover {
+      background: var(--danger);
+      color: #fff;
+      transform: scale(1.1);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-2);
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-2);
+    }
+    
+    .stats {
+      padding: 16px 24px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      gap: 24px;
+      font-size: 0.85rem;
+    }
+    
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .stat-label {
+      color: var(--text-2);
+    }
+    
+    .stat-value {
+      font-weight: 700;
+      color: var(--accent);
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      z-index: 10000;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      animation: slideIn 0.3s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 200px;
+    }
+    
+    .toast.success {
+      background: var(--ok);
+      color: #fff;
+    }
+    
+    .toast.error {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+    
+    .confirm-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    .confirm-box {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: scaleIn 0.2s ease-out;
+    }
+    
+    .confirm-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .confirm-message {
+      color: var(--text-2);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    
+    .confirm-plate {
+      background: var(--surface-2);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 8px 0;
+      text-align: center;
+    }
+    
+    .confirm-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    
+    .confirm-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .confirm-btn.cancel {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    
+    .confirm-btn.cancel:hover {
+      background: var(--surface-3);
+    }
+    
+    .confirm-btn.delete {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    .confirm-btn.delete:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.9);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Navigation -->
+  <nav style="display:flex;gap:6px;padding:12px 20px;background:var(--surface);border-bottom:1px solid var(--line)">
+    <a href="/" style="padding:10px 16px;border-radius:10px;text-decoration:none;color:var(--text-2);font-size:0.85rem;font-weight:600;transition:all 0.2s">Panel</a>
+    <a href="/kayitlar.html" style="padding:10px 16px;border-radius:10px;text-decoration:none;color:var(--text-2);font-size:0.85rem;font-weight:600;transition:all 0.2s">Kayıtlar</a>
+    <a href="/plakalar.html" style="padding:10px 16px;border-radius:10px;background:var(--accent);color:#fff;text-decoration:none;font-size:0.85rem;font-weight:600">Plakalar</a>
+    <a href="/siteler.html" style="padding:10px 16px;border-radius:10px;text-decoration:none;color:var(--text-2);font-size:0.85rem;font-weight:600;transition:all 0.2s">Siteler</a>
+    <a href="/ayar.html" style="padding:10px 16px;border-radius:10px;text-decoration:none;color:var(--text-2);font-size:0.85rem;font-weight:600;transition:all 0.2s">Ayarlar</a>
+  </nav>
+
+  <!-- Stats Bar -->
+  <div class="stats">
+    <div class="stat-item">
+      <span class="stat-label">Toplam Plaka:</span>
+      <span class="stat-value" id="totalCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Kurye:</span>
+      <span class="stat-value" id="kuryeCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Ziyaretçi:</span>
+      <span class="stat-value" id="ziyaretciCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Servis:</span>
+      <span class="stat-value" id="servisCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Tedarikçi:</span>
+      <span class="stat-value" id="tedarikciCount">0</span>
+    </div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <div class="search-box">
+      <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+      </svg>
+      <input type="text" class="search-input" id="searchInput" placeholder="Plaka, ad, firma ara...">
+    </div>
+    <select class="filter-select" id="typeFilter">
+      <option value="">Tüm Türler</option>
+      <option value="Kurye">Kurye</option>
+      <option value="Ziyaretçi">Ziyaretçi</option>
+      <option value="Servis">Servis</option>
+      <option value="Tedarikçi">Tedarikçi</option>
+    </select>
+    <a href="plakalar.xlsx" class="btn-add" style="text-decoration:none;background:var(--ok)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Excel İndir
+    </a>
+  </div>
+
+  <!-- Table -->
+  <div class="table-container">
+    <div id="loading" class="loading">Yükleniyor...</div>
+    <table id="plakalarTable" style="display:none">
+      <thead>
+        <tr>
+          <th>Plaka</th>
+          <th>Tür</th>
+          <th>Ad Soyad</th>
+          <th>Firma</th>
+          <th>Telefon</th>
+          <th>Not</th>
+          <th>Son Görülme</th>
+          <th>Görülme Sayısı</th>
+          <th style="width:80px">İşlem</th>
+        </tr>
+      </thead>
+      <tbody id="plakalarBody">
+      </tbody>
+    </table>
+    <div id="emptyState" class="empty-state" style="display:none">
+      <div class="empty-icon">🚗</div>
+      <h3>Henüz plaka kaydı yok</h3>
+      <p>Telefon uygulamasından plaka okutulduğunda burada görünecek</p>
+    </div>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+    let allPlates = [];
+    let editingId = null;
+    let originalRowData = null;
+
+    // Toast notifications
+    function showToast(message, type) {
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      
+      const icon = type === 'success' 
+        ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      
+      toast.innerHTML = icon + '<span>' + message + '</span>';
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(() => toast.remove(), 300);
+      }, 3000);
+    }
+
+    function showConfirm(title, message, onConfirm) {
+      const modal = document.createElement('div');
+      modal.className = 'confirm-modal';
+      modal.innerHTML = 
+        '<div class="confirm-box">' +
+          '<div class="confirm-title">' +
+            '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">' +
+              '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' +
+            '</svg>' +
+            '<span>' + title + '</span>' +
+          '</div>' +
+          '<div class="confirm-message">' + message + '</div>' +
+          '<div class="confirm-actions">' +
+            '<button class="confirm-btn cancel">İptal</button>' +
+            '<button class="confirm-btn delete">Sil</button>' +
+          '</div>' +
+        '</div>';
+      
+      document.body.appendChild(modal);
+      
+      modal.querySelector('.cancel').addEventListener('click', () => {
+        modal.remove();
+      });
+      
+      modal.querySelector('.delete').addEventListener('click', () => {
+        modal.remove();
+        onConfirm();
+      });
+      
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+    }
+
+    // Load plates
+    async function loadPlates() {
+      try {
+        const res = await fetch('/plakalar?limit=1000');
+        const data = await res.json();
+        
+        if (data.ok) {
+          allPlates = data.records || [];
+          updateStats();
+          renderPlates();
+          document.getElementById('loading').style.display = 'none';
+          document.getElementById('plakalarTable').style.display = allPlates.length > 0 ? 'table' : 'none';
+          document.getElementById('emptyState').style.display = allPlates.length === 0 ? 'block' : 'none';
+        } else {
+          if (res.status === 401) {
+            showToast('Yetki hatası - Panel sayfasından giriş yapın', 'error');
+            setTimeout(() => window.location.href = '/', 2000);
+          } else {
+            showToast('Plakalar yüklenemedi: ' + (data.error || 'Bilinmeyen hata'), 'error');
+          }
+        }
+      } catch (e) {
+        showToast('Bağlantı hatası: ' + e.message, 'error');
+      }
+    }
+
+    // Update stats
+    function updateStats() {
+      document.getElementById('totalCount').textContent = allPlates.length;
+      document.getElementById('kuryeCount').textContent = allPlates.filter(p => (p.type || 'Kurye') === 'Kurye').length;
+      document.getElementById('ziyaretciCount').textContent = allPlates.filter(p => p.type === 'Ziyaretçi').length;
+      document.getElementById('servisCount').textContent = allPlates.filter(p => p.type === 'Servis').length;
+      document.getElementById('tedarikciCount').textContent = allPlates.filter(p => p.type === 'Tedarikçi').length;
+    }
+
+    // Render plates
+    function renderPlates() {
+      const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+      const typeFilter = document.getElementById('typeFilter').value;
+      
+      let filtered = allPlates;
+      
+      if (searchTerm) {
+        filtered = filtered.filter(p => 
+          [p.plate, p.name, p.company, p.note, p.phone]
+            .map(v => String(v || '').toLowerCase())
+            .some(v => v.includes(searchTerm))
+        );
+      }
+      
+      if (typeFilter) {
+        filtered = filtered.filter(p => (p.type || 'Kurye') === typeFilter);
+      }
+      
+      const tbody = document.getElementById('plakalarBody');
+      tbody.innerHTML = '';
+      
+      filtered.forEach(plate => {
+        const tr = document.createElement('tr');
+        tr.className = 'editable-row';
+        tr.dataset.id = plate.id;
+        
+        if (editingId === plate.id) {
+          tr.className = 'editing-row';
+          tr.innerHTML = `
+            <td class="plate-cell">${esc(plate.plate)}</td>
+            <td>
+              <select class="cell-select" id="edit-type">
+                <option value="Kurye" ${plate.type === 'Kurye' ? 'selected' : ''}>Kurye</option>
+                <option value="Ziyaretçi" ${plate.type === 'Ziyaretçi' ? 'selected' : ''}>Ziyaretçi</option>
+                <option value="Servis" ${plate.type === 'Servis' ? 'selected' : ''}>Servis</option>
+                <option value="Tedarikçi" ${plate.type === 'Tedarikçi' ? 'selected' : ''}>Tedarikçi</option>
+              </select>
+            </td>
+            <td><input type="text" class="cell-input" id="edit-name" value="${esc(plate.name || '')}"></td>
+            <td><input type="text" class="cell-input" id="edit-company" value="${esc(plate.company || '')}"></td>
+            <td><input type="text" class="cell-input" id="edit-phone" value="${esc(plate.phone || '')}"></td>
+            <td><input type="text" class="cell-input" id="edit-note" value="${esc(plate.note || '')}"></td>
+            <td>${formatDate(plate.updatedAt || plate.ts)}</td>
+            <td>${plate.seen || 0}</td>
+            <td>
+              <div class="edit-actions">
+                <button class="btn-icon btn-save" onclick="savePlate('${plate.id}')">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                </button>
+                <button class="btn-icon btn-cancel" onclick="cancelEdit()">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          `;
+        } else {
+          const type = plate.type || 'Kurye';
+          const badgeClass = `badge-${type.toLowerCase().replace('ç', 'c').replace('ı', 'i')}`;
+          
+          tr.innerHTML = `
+            <td class="plate-cell">${esc(plate.plate)}</td>
+            <td><span class="badge ${badgeClass}">${esc(type)}</span></td>
+            <td>${esc(plate.name || '-')}</td>
+            <td>${esc(plate.company || '-')}</td>
+            <td>${esc(plate.phone || '-')}</td>
+            <td>${esc(plate.note || '-')}</td>
+            <td>${formatDate(plate.updatedAt || plate.ts)}</td>
+            <td>${plate.seen || 0}</td>
+            <td>
+              <div style="display:flex;gap:6px">
+                <button class="btn-icon" onclick="editPlate('${plate.id}')" style="background:var(--accent);color:#fff" title="Düzenle">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
+                <button class="btn-icon" onclick="deletePlate('${plate.id}', '${esc(plate.plate)}')" style="background:var(--danger);color:#fff" title="Sil">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          `;
+        }
+        
+        tbody.appendChild(tr);
+      });
+      
+      document.getElementById('plakalarTable').style.display = filtered.length > 0 ? 'table' : 'none';
+      document.getElementById('emptyState').style.display = filtered.length === 0 && searchTerm ? 'block' : 'none';
+    }
+
+    // Edit plate
+    function editPlate(id) {
+      if (editingId) {
+        showToast('Önce mevcut düzenlemeyi kaydedin veya iptal edin', 'error');
+        return;
+      }
+      editingId = id;
+      originalRowData = allPlates.find(p => p.id === id);
+      renderPlates();
+    }
+
+    // Cancel edit
+    function cancelEdit() {
+      editingId = null;
+      originalRowData = null;
+      renderPlates();
+    }
+
+    // Save plate
+    async function savePlate(id) {
+      const type = document.getElementById('edit-type').value;
+      const name = document.getElementById('edit-name').value.trim();
+      const company = document.getElementById('edit-company').value.trim();
+      const phone = document.getElementById('edit-phone').value.trim();
+      const note = document.getElementById('edit-note').value.trim();
+      
+      if (!name) {
+        showToast('Ad soyad boş olamaz', 'error');
+        return;
+      }
+      
+      try {
+        const res = await fetch(`/plaka/${id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ type, name, company, phone, note })
+        });
+        
+        const data = await res.json();
+        
+        if (data.ok) {
+          const idx = allPlates.findIndex(p => p.id === id);
+          if (idx >= 0) {
+            allPlates[idx] = { ...allPlates[idx], type, name, company, phone, note, updatedAt: Date.now() };
+          }
+          editingId = null;
+          originalRowData = null;
+          updateStats();
+          renderPlates();
+          showToast('Plaka güncellendi', 'success');
+        } else {
+          showToast('Hata: ' + (data.error || 'Bilinmeyen hata'), 'error');
+        }
+      } catch (e) {
+        showToast('Bağlantı hatası: ' + e.message, 'error');
+      }
+    }
+
+    // Delete plate
+    async function deletePlate(id, plate) {
+      showConfirm(
+        'Plakayı Sil',
+        'Bu plakayı silmek istediğinize emin misiniz?<div class="confirm-plate">' + esc(plate) + '</div><div style="color:var(--danger);font-size:0.8rem;margin-top:8px">⚠️ Bu işlem geri alınamaz!</div>',
+        async () => {
+          try {
+            const res = await fetch(`/plaka/${id}`, {
+              method: 'DELETE'
+            });
+            
+            const data = await res.json();
+            
+            if (data.ok) {
+              allPlates = allPlates.filter(p => p.id !== id);
+              updateStats();
+              renderPlates();
+              showToast('Plaka silindi', 'success');
+            } else {
+              showToast('Hata: ' + (data.error || 'Bilinmeyen hata'), 'error');
+            }
+          } catch (e) {
+            showToast('Bağlantı hatası: ' + e.message, 'error');
+          }
+        }
+      );
+    }
+
+    // Format date
+    function formatDate(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      return d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+             d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+    }
+
+    // Escape HTML
+    function esc(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    // Event listeners
+    document.getElementById('searchInput').addEventListener('input', renderPlates);
+    document.getElementById('typeFilter').addEventListener('change', renderPlates);
+
+    // Load on page load
+    loadPlates();
+    
+    // Reload every 30 seconds
+    setInterval(loadPlates, 30000);
+  </script>
+</body>
+</html>

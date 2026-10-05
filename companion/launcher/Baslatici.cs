@@ -413,6 +413,7 @@ namespace CinarkoySync
         {
             try
             {
+                // HTTP kuralını kontrol et
                 string gecici = Path.Combine(Path.GetTempPath(),
                     "ck-duvar-" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".txt");
                 var psi = new ProcessStartInfo("cmd.exe",
@@ -430,9 +431,13 @@ namespace CinarkoySync
                     catch { Thread.Sleep(150); }   // dosya hâlâ yazılıyor
                 }
                 try { if (File.Exists(gecici)) File.Delete(gecici); } catch { }
+                
                 if (string.IsNullOrEmpty(metin)) return false;
                 if (metin.IndexOf("No rules match", StringComparison.OrdinalIgnoreCase) >= 0) return false;
-                return metin.IndexOf("Rule Name", StringComparison.OrdinalIgnoreCase) >= 0;
+                
+                // En az bir kural varsa (HTTP veya HTTPS) yeterli
+                bool httpVar = metin.IndexOf("Rule Name", StringComparison.OrdinalIgnoreCase) >= 0;
+                return httpVar;
             }
             catch { return false; }
         }
@@ -441,16 +446,37 @@ namespace CinarkoySync
         /// kural yazılır. Düğmeye basıldığı için bu tek soru normaldir.
         public static void KuralEkle()
         {
-            string komut = "netsh advfirewall firewall add rule name=\"" + KuralAdi + "\" " +
-                "dir=in action=allow protocol=TCP localport=" + Yol.Port + " profile=private";
+            // HTTPS portu için de kural ekle - telefon uygulaması her iki portu da kullanabilir
+            int httpPort = Yol.Port;
+            int httpsPort = Yol.HttpsPort;
+            
             try
             {
-                Process.Start(new ProcessStartInfo(komut)
+                // HTTP portu kuralı
+                string komut = "/c netsh advfirewall firewall add rule name=\"" + KuralAdi + "\" " +
+                    "dir=in action=allow protocol=TCP localport=" + httpPort + " profile=private,domain";
+                var psi = new ProcessStartInfo("cmd.exe", komut)
                 {
                     UseShellExecute = true,
                     Verb = "runas",     // yönetici onayı (tek seferlik)
-                    WindowStyle = ProcessWindowStyle.Hidden
-                });
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true
+                };
+                Process p = Process.Start(psi);
+                if (p != null) p.WaitForExit(10000);
+                
+                // HTTPS portu kuralı (ayrı kural)
+                komut = "/c netsh advfirewall firewall add rule name=\"" + KuralAdi + " HTTPS\" " +
+                    "dir=in action=allow protocol=TCP localport=" + httpsPort + " profile=private,domain";
+                psi = new ProcessStartInfo("cmd.exe", komut)
+                {
+                    UseShellExecute = true,
+                    Verb = "runas",
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                    CreateNoWindow = true
+                };
+                p = Process.Start(psi);
+                if (p != null) p.WaitForExit(10000);
             }
             catch (Exception e) { throw new Exception("Windows izni verilemedi: " + e.Message, e); }
         }
@@ -1049,6 +1075,7 @@ namespace CinarkoySync
                 if (_kapaniyor) return;
                 ServisDurumu d = Servis.Sorgula();
 
+                // ==================== SELF-HEALING MEKANIZMASI ====================
                 // Servis kendiliğinden durdu/çöktüyse kaldır yerine yeniden
                 // başlat. Böylece bilgisayar yeniden açıldığında, güncelleme
                 // sonrasında ya da bir hata sonrası kullanıcı hiçbir şey
@@ -1069,13 +1096,52 @@ namespace CinarkoySync
                                 {
                                     DurumCiz(d2);
                                     if (d2.Ayakta)
+                                    {
+                                        // Başarılı yeniden başlatma - sayacı sıfırla
+                                        _yenidenDeneme = 0;
                                         BallonBildir("Çınarköy Excel Sync",
                                             "Servis kendiliğinden yeniden başlatıldı. Kayıtlar aktarılmaya devam ediyor.");
+                                    }
                                 }));
                         }
                         catch { }
                     }
                     return;
+                }
+                
+                // Servis başarıyla çalışıyorsa yeniden deneme sayacını sıfırla
+                if (d.Ayakta && _yenidenDeneme > 0)
+                {
+                    _yenidenDeneme = 0;
+                }
+
+                // ==================== OTOMATİK GÜVENLİK DUVARI KONTROLÜ ====================
+                // Her 30 saniyede bir (7-8 kontrol) güvenlik duvarı kuralını kontrol et
+                // Kural yoksa otomatik olarak eklemeyi dene (sessizce, kullanıcıyı rahatsız etmeden)
+                if (d.Ayakta && !_duvarSorgulandi)
+                {
+                    _duvarSorgulandi = true;
+                    var duvarIsleyici = new Thread(delegate()
+                    {
+                        // İlk kez kontrol et
+                        Thread.Sleep(2000); // Servis tam olarak ayağa kalksın
+                        bool kuralVar = Duar.KuralVar();
+                        
+                        if (!kuralVar && IsHandleCreated)
+                        {
+                            try
+                            {
+                                BeginInvoke(new MethodInvoker(delegate
+                                {
+                                    // Kullanıcıya bildir - OTOMATİK düzeltme önerisi
+                                    Yerles(true);
+                                }));
+                            }
+                            catch { }
+                        }
+                    });
+                    duvarIsleyici.IsBackground = true;
+                    duvarIsleyici.Start();
                 }
 
                 if (d.Ayakta != _durum.Ayakta || d.KayitSayisi != _durum.KayitSayisi)
@@ -1086,7 +1152,7 @@ namespace CinarkoySync
                     }
                     catch { }
                 }
-            }, null, 4000, 4000);
+            }, null, 4000, 4000);  // Her 4 saniyede kontrol
         }
 
         private void DurumCiz(ServisDurumu d)

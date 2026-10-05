@@ -148,7 +148,7 @@ function tam(url) { return kokCoz() + url; }
   // Sunucu artık sahne içinde plaka buluyor (companion/ocr/bolge.js), bu yüzden
   // ona TAM KARE vermek hem doğru hem de tek denemede çözüm demektir.
   // Kamera akışı kapandıysa (galeriden yükleme) elimizdeki kareyi göndeririz.
-  var EN_GENIS = 1280;   // sunucu 900px'te çalışıyor; 1280 fazlası gereksiz
+  var EN_GENIS = 640;   // Galeri 11KB başarılı, 640px ideal boyut
 
   function cerceveyiCiz(kaynak) {
     var w = kaynak.videoWidth || kaynak.width;
@@ -170,7 +170,15 @@ function tam(url) { return kokCoz() + url; }
     if (typeof kaynak === 'string') return kaynak;           // zaten data URL
     var d = cerceveyiCiz(kaynak);
     if (!d) return null;
-    try { return d.toDataURL('image/png'); } catch (e) { return null; }
+    // JPEG sıkıştırma (kalite: 0.70) - galeri 11KB, hedefe ulaşmak için daha düşük
+    try { 
+      var jpeg = d.toDataURL('image/jpeg', 0.70);
+      // Eğer JPEG dönüşümü başarısızsa PNG'ye düş
+      return jpeg || d.toDataURL('image/png'); 
+    } catch (e) { 
+      // JPEG başarısızsa PNG dene
+      try { return d.toDataURL('image/png'); } catch (e2) { return null; }
+    }
   }
 
   /**
@@ -208,7 +216,14 @@ function tam(url) { return kokCoz() + url; }
       if (!c) return null;
       c.drawImage(v, 0, 0, w, h);
       var k = cerceveyiCiz(o);
-      return k ? k.toDataURL('image/png') : null;
+      // JPEG sıkıştırma (kalite: 0.70)
+      if (!k) return null;
+      try {
+        var jpeg = k.toDataURL('image/jpeg', 0.70);
+        return jpeg || k.toDataURL('image/png');
+      } catch (e2) {
+        try { return k.toDataURL('image/png'); } catch (e3) { return null; }
+      }
     } catch (e) {
       return null;
     }
@@ -316,6 +331,7 @@ function tam(url) { return kokCoz() + url; }
             gorsel: veri,
             bilinenPlakalar: bilinenPlakalar(),
             ipucu: kirpmaIpuclari(),
+            kaynak: 'kamera-dosya',  // DEBUG için
           }),
         });
       }
@@ -409,6 +425,26 @@ function tam(url) { return kokCoz() + url; }
     if (!tam && akisVarMi()) {
       console.warn('[yerel OCR] kare yine alınamadı (videoWidth/videoHeight hazır değil)');
     }
+    
+    // KAMERA DOSYA GİRİŞİNDEN GELİYORSA (capture="environment")
+    // kaynak parametresi Canvas veya Image'dir - bu TAM KARE'dir!
+    if (!tam && kaynak && (kaynak.width || kaynak.naturalWidth)) {
+      console.log('[yerel OCR] kamera dosya girişinden tam kare kullanılıyor');
+      var veri = tuvalHazirla(kaynak);
+      if (veri) {
+        console.log('[yerel OCR] gönderilen: KAMERA TAM KARE (' + gorselOlcu(veri) + ')' +
+          ' ipucu=' + ipucuYaz(kirpmaIpuclari()));
+        var sonucK = await tekIstek(veri);
+        sonucK.tamKare = true;
+        console.log('[yerel OCR] kamera karesi sonucu: basarili=' + sonucK.basarili +
+          ' plaka=' + (sonucK.plaka || '-') + ' bolge=' + sonucK.bolgeler +
+          ' kaynak=' + (sonucK.bulunanBolge || '-') + ' neden=' + (sonucK.neden || '-') +
+          ' sure=' + sonucK.sureMs + 'ms');
+        hamYaz(sonucK);
+        return sonucK;
+      }
+    }
+    
     if (tam) {
       // TANI: gerçek telefonda akış her zaman bulunamıyor olabilir. Neyin
       // gönderildiğini konsola yazmadan teşhis koymak imkânsız.

@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="tr" data-tema="koyu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e0c" />
+  <title>Telefonu Bağla · Çınarköy Sync</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    /* Karanlık/aydınlık mod iyileştirmeleri */
+    [data-tema="aydinlik"] .qr-container {
+      background: #fff;
+      border: 2px solid var(--line);
+    }
+    [data-tema="koyu"] .qr-container {
+      background: #fff;
+      border: 2px solid var(--amber);
+      box-shadow: 0 0 20px rgba(255, 169, 77, 0.2);
+    }
+    
+    .qr-container {
+      padding: 20px;
+      border-radius: 16px;
+      display: inline-block;
+      margin: 16px auto;
+    }
+    
+    .qr-container svg {
+      display: block;
+      width: 240px;
+      height: 240px;
+    }
+    
+    .step-container {
+      display: grid;
+      gap: 20px;
+      margin-top: 24px;
+    }
+    
+    .step-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 20px;
+      transition: all 0.2s;
+    }
+    
+    .step-card:hover {
+      border-color: var(--amber);
+      transform: translateY(-2px);
+    }
+    
+    .step-number {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: var(--amber);
+      color: #000;
+      border-radius: 50%;
+      font-weight: 700;
+      margin-right: 12px;
+    }
+    
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+    }
+    
+    .step-desc {
+      color: var(--muted);
+      line-height: 1.6;
+      font-size: 0.95rem;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    
+    .status-ok {
+      background: rgba(79, 216, 201, 0.15);
+      color: var(--cyan);
+      border: 1px solid var(--cyan);
+    }
+    
+    .status-warn {
+      background: rgba(255, 169, 77, 0.15);
+      color: var(--amber);
+      border: 1px solid var(--amber);
+    }
+    
+    .url-display {
+      background: var(--panel2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 1rem;
+      word-break: break-all;
+      margin: 12px 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .url-text {
+      flex: 1;
+      color: var(--amber);
+      font-weight: 600;
+    }
+    
+    .copy-btn {
+      flex-shrink: 0;
+      padding: 8px 16px;
+      background: var(--amber);
+      color: #000;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .copy-btn:hover {
+      transform: scale(1.05);
+    }
+    
+    .copy-btn:active {
+      transform: scale(0.95);
+    }
+    
+    .qr-section {
+      text-align: center;
+      margin: 24px 0;
+    }
+    
+    .qr-label {
+      font-size: 0.9rem;
+      color: var(--muted);
+      margin-bottom: 12px;
+    }
+    
+    .troubleshoot {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 24px;
+    }
+    
+    .troubleshoot summary {
+      cursor: pointer;
+      font-weight: 600;
+      padding: 8px;
+      user-select: none;
+    }
+    
+    .troubleshoot[open] summary {
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="gosterge">
+    <header class="ust">
+      <div class="ic">
+        <div class="marka">
+          <div class="marka-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="12" r="7"/><path d="M12 5v7l4.5 3"/>
+            </svg>
+          </div>
+          <div class="marka-yazi">
+            <b>Çınarköy Sync</b>
+            <span>Telefon Bağlantısı</span>
+          </div>
+        </div>
+        <nav class="gezinme" aria-label="Bölümler">
+          <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
+          <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
+          <a href="/eslesme.html" class="aktif"><span data-ikon="esle"></span><span>Telefon</span></a>
+          <a href="/cihazlar.html"><span data-ikon="wifi"></span><span>Cihazlar</span></a>
+          <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
+        </nav>
+        <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
+          <span class="ay"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg></span>
+          <span class="gunes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.6M12 19.6v2.6M3.5 3.5l1.8 1.8M18.7 18.7l1.8 1.8M1.8 12h2.6M19.6 12h2.6M3.5 20.5l1.8-1.8M18.7 5.3l1.8-1.8"/></svg></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="ana">
+      <div class="kabuk">
+        
+        <!-- Durum Banner -->
+        <div id="statusBanner" style="display:none;"></div>
+
+        <!-- Ana Kart -->
+        <section class="kart">
+          <div class="kart-bas">
+            <h2>Telefonu Bağla</h2>
+            <span class="status-badge status-ok" id="connectionStatus">Hazır</span>
+          </div>
+          <div class="kart-govde">
+            
+            <!-- ADIM 1: QR Kod Okut -->
+            <div class="step-card">
+              <div class="step-title">
+                <span class="step-number">1</span>
+                <span>Telefonda uygulamayı aç</span>
+              </div>
+              <div class="step-desc">
+                Telefonunuzun kamerasıyla aşağıdaki QR kodu okutun
+              </div>
+              
+              <div class="qr-section">
+                <div class="qr-container" id="qrContainer">
+                  <div style="padding:40px;color:#999;">QR kod yükleniyor...</div>
+                </div>
+                <div class="qr-label">Telefonun kamerasıyla okutun</div>
+              </div>
+              
+              <div class="url-display">
+                <div class="url-text" id="appUrl">http://...</div>
+                <button class="copy-btn" id="copyUrlBtn">Kopyala</button>
+              </div>
+              
+              <div class="step-desc" style="margin-top:12px;">
+                ✅ Sertifika kurmanıza gerek yok<br>
+                ✅ Hiçbir ayar yapmadan hemen kullanmaya başlayın
+              </div>
+            </div>
+
+            <!-- ADIM 2: Senkron Kur -->
+            <div class="step-card">
+              <div class="step-title">
+                <span class="step-number">2</span>
+                <span>Senkronizasyonu başlat</span>
+              </div>
+              <div class="step-desc">
+                Telefonda "Senkron" butonuna basın ve bu QR kodu okutun
+              </div>
+              
+              <div class="qr-section">
+                <div class="qr-container" id="qrContainerToken">
+                  <div style="padding:40px;color:#999;">Token QR yükleniyor...</div>
+                </div>
+                <div class="qr-label">Senkron için bu kodu okutun</div>
+              </div>
+              
+              <div class="step-desc" style="margin-top:12px;">
+                Bu adımdan sonra tüm plaka kayıtları otomatik olarak bilgisayara aktarılacak
+              </div>
+            </div>
+
+            <!-- Test Butonu -->
+            <div style="display:flex;gap:12px;margin-top:24px;">
+              <button class="dugme" id="testBtn">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                  <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/>
+                  <path d="M9 12l2 2 4-4"/>
+                </svg>
+                Bağlantıyı Test Et
+              </button>
+              <button class="dugme sade" id="refreshBtn">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;">
+                  <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                </svg>
+                Yenile
+              </button>
+            </div>
+            
+            <div id="testResult" style="margin-top:16px;min-height:20px;"></div>
+
+          </div>
+        </section>
+
+        <!-- Sorun Giderme -->
+        <details class="troubleshoot">
+          <summary>🔧 Bağlanamazsam ne yapmalıyım?</summary>
+          <div class="step-container" style="margin-top:16px;">
+            <div>
+              <strong>1. Aynı Wi-Fi ağında mısınız?</strong>
+              <p class="step-desc">Telefon ve bilgisayar aynı Wi-Fi ağına bağlı olmalı</p>
+            </div>
+            <div>
+              <strong>2. Güvenlik duvarı engelliyor olabilir</strong>
+              <p class="step-desc">BASLATICI.bat'tan "Windows İznini Ver" butonuna basın</p>
+            </div>
+            <div>
+              <strong>3. IP adresi değişmiş olabilir</strong>
+              <p class="step-desc">Bu sayfayı yenileyin (F5) ve yeni QR kodu okutun</p>
+            </div>
+            <div>
+              <strong>4. Sunucu çalışmıyor olabilir</strong>
+              <p class="step-desc">BASLATICI.bat dosyasını çift tıklayarak sunucuyu başlatın</p>
+            </div>
+          </div>
+        </details>
+
+      </div>
+
+      <footer class="alt-bilgi kabuk">
+        <span>Çınarköy Güvenlik · Veriler bu bilgisayarda saklanır</span>
+        <span class="mono" id="footerInfo"></span>
+      </footer>
+    </main>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    
+    // İkon yükleme
+    document.querySelectorAll("[data-ikon]").forEach(function (el) { 
+      el.innerHTML = CK.ikon(el.dataset.ikon); 
+    });
+
+    let data = null;
+
+    function showStatus(message, type) {
+      const banner = document.getElementById('statusBanner');
+      const types = {
+        success: { bg: 'rgba(79, 216, 201, 0.15)', border: 'var(--cyan)', color: 'var(--cyan)' },
+        error: { bg: 'rgba(255, 107, 91, 0.15)', border: 'var(--danger)', color: 'var(--danger)' },
+        warning: { bg: 'rgba(255, 169, 77, 0.15)', border: 'var(--amber)', color: 'var(--amber)' }
+      };
+      const style = types[type] || types.success;
+      banner.style.display = 'block';
+      banner.style.background = style.bg;
+      banner.style.border = `1px solid ${style.border}`;
+      banner.style.color = style.color;
+      banner.style.padding = '16px';
+      banner.style.borderRadius = '12px';
+      banner.style.marginBottom = '16px';
+      banner.textContent = message;
+      
+      setTimeout(() => {
+        banner.style.display = 'none';
+      }, 5000);
+    }
+
+    function loadData() {
+      CK.istek("/eslesme")
+        .then(r => r.json())
+        .then(d => {
+          data = d;
+          
+          // İlk QR - Token YOK
+          const qrContainer = document.getElementById('qrContainer');
+          if (d.qrSvg) {
+            qrContainer.innerHTML = d.qrSvg;
+            const svg = qrContainer.querySelector('svg');
+            if (svg) {
+              svg.setAttribute('width', '240');
+              svg.setAttribute('height', '240');
+            }
+          } else {
+            qrContainer.innerHTML = '<div style="padding:40px;color:#f66;">QR oluşturulamadı</div>';
+          }
+          
+          // İkinci QR - Token VAR
+          const qrContainerToken = document.getElementById('qrContainerToken');
+          if (d.qrSvgToken) {
+            qrContainerToken.innerHTML = d.qrSvgToken;
+            const svg = qrContainerToken.querySelector('svg');
+            if (svg) {
+              svg.setAttribute('width', '240');
+              svg.setAttribute('height', '240');
+            }
+          } else {
+            qrContainerToken.innerHTML = '<div style="padding:40px;color:#f66;">Token QR oluşturulamadı</div>';
+          }
+          
+          // URL göster
+          const appUrl = d.qrIlk || (d.kaliciAdres + '/telefon/');
+          document.getElementById('appUrl').textContent = appUrl;
+          document.getElementById('footerInfo').textContent = d.kaliciAdres || '-';
+          
+          // Durum
+          document.getElementById('connectionStatus').textContent = 
+            d.adresler && d.adresler.length ? 'Çevrimiçi' : 'Bağlantı Yok';
+          
+          showStatus('✅ Sistem hazır! Telefonu bağlayabilirsiniz.', 'success');
+        })
+        .catch(err => {
+          showStatus('❌ Sunucuya bağlanılamadı. Sunucunun çalıştığından emin olun.', 'error');
+        });
+    }
+
+    // Kopyala butonu
+    document.getElementById('copyUrlBtn').addEventListener('click', function() {
+      const url = document.getElementById('appUrl').textContent;
+      navigator.clipboard.writeText(url).then(() => {
+        CK.bildir('URL kopyalandı', 'olumlu');
+      });
+    });
+
+    // Test butonu
+    document.getElementById('testBtn').addEventListener('click', function() {
+      const result = document.getElementById('testResult');
+      result.textContent = 'Test ediliyor...';
+      result.style.color = 'var(--muted)';
+      
+      CK.istek('/saglik')
+        .then(r => r.json())
+        .then(d => {
+          result.textContent = `✅ Bağlantı başarılı! ${d.kayitSayisi} kayıt var.`;
+          result.style.color = 'var(--cyan)';
+        })
+        .catch(() => {
+          result.textContent = '❌ Sunucuya ulaşılamadı';
+          result.style.color = 'var(--danger)';
+        });
+    });
+
+    // Yenile butonu
+    document.getElementById('refreshBtn').addEventListener('click', function() {
+      loadData();
+      CK.bildir('Sayfa yenilendi', 'olumlu');
+    });
+
+    // İlk yükleme
+    loadData();
+    
+    // Otomatik yenileme (30 saniyede bir)
+    setInterval(loadData, 30000);
+  })();
+  </script>
+</body>
+</html>

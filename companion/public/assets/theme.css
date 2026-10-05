@@ -285,9 +285,17 @@ input[type="text"], input[type="password"], input[type="number"], select, textar
   color: var(--text); font: inherit; font-size: 0.88rem; outline: none;
   transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
 }
+select option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
 html[data-tema="acik"] input[type="text"], html[data-tema="acik"] input[type="password"],
 html[data-tema="acik"] input[type="number"], html[data-tema="acik"] select, html[data-tema="acik"] textarea {
   background: #fff;
+}
+html[data-tema="acik"] select option {
+  background: #fff;
+  color: #101614;
 }
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent-line); box-shadow: 0 0 0 3px var(--accent-soft);

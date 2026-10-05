@@ -22,7 +22,8 @@
         <nav class="gezinme" aria-label="Bölümler">
           <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
-          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -36,29 +37,106 @@
       <div class="kabuk">
         <section class="izgara-2">
           <div class="kart">
-            <div class="kart-bas"><h2>Görünüm</h2><span class="rozet" id="temaEtiket">—</span></div>
+            <div class="kart-bas">
+              <h2>Görünüm</h2>
+              <span class="rozet" id="temaEtiket">—</span>
+            </div>
             <div class="kart-govde">
-              <p class="muted" style="font-size:.85rem;line-height:1.6;margin-bottom:14px">
-                Koyu ve aydınlık tema birlikte tasarlandı. Seçiminiz bu tarayıcıda saklanır;
-                sistem tercihiniz yoksa ilk açılışta ona uyar.
+              <p class="muted" style="font-size:0.88rem;line-height:1.6;margin-bottom:16px">
+                Koyu ve aydınlık tema arasında geçiş yapabilirsiniz. Seçiminiz tarayıcıda saklanır.
               </p>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <button class="dugme sade kucuk" type="button" data-tema-sec="koyu">Koyu</button>
-                <button class="dugme sade kucuk" type="button" data-tema-sec="acik">Aydınlık</button>
-                <button class="dugme kucuk" type="button" id="temaSistem">Sistem tercihi</button>
-              </div>
-              <div class="alt-bilgi" style="margin-top:16px">
-                <span>Etkin tema</span><span class="mono" id="temaDurum">—</span>
+              <div style="display:flex;gap:10px;flex-wrap:wrap">
+                <button class="dugme kucuk" type="button" data-tema-sec="koyu">
+                  <span data-ikon="ay"></span>
+                  <span>Koyu Tema</span>
+                </button>
+                <button class="dugme kucuk" type="button" data-tema-sec="acik">
+                  <span data-ikon="gunes"></span>
+                  <span>Aydınlık Tema</span>
+                </button>
+                <button class="dugme sade kucuk" type="button" id="temaSistem">
+                  <span data-ikon="ayar"></span>
+                  <span>Sistem Tercihi</span>
+                </button>
               </div>
             </div>
           </div>
 
           <div class="kart">
-            <div class="kart-bas"><h2>Servis durumu</h2><span class="canli" id="canli"><span class="nokta"></span><span>Bağlanıyor</span></span></div>
+            <div class="kart-bas">
+              <h2>Servis Durumu</h2>
+              <span class="canli" id="canli"><span class="nokta"></span><span>Bağlanıyor</span></span>
+            </div>
             <div class="kart-govde">
-              <ol class="adimlar" id="durumSatirlari">
-                <li><span class="iskelet" style="display:block;height:14px;width:70%"></span></li>
-                <li><span class="iskelet" style="display:block;height:14px;width:55%"></span></li>
+              <div id="durumBilgi" style="display:grid;gap:12px"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="izgara-2" style="margin-top:14px">
+          <div class="kart">
+            <div class="kart-bas">
+              <h2>Excel Kayıt Sistemi</h2>
+              <span class="rozet" id="excelModDurum">—</span>
+            </div>
+            <div class="kart-govde">
+              <p class="muted" style="font-size:0.88rem;line-height:1.6;margin-bottom:16px">
+                Kayıtların nasıl gruplandırılacağını seçin. <b>Günlük Excel önerilir</b> - her günün kayıtları ayrı dosyada tutulur.
+              </p>
+              
+              <div style="margin-bottom:20px">
+                <label style="display:block;font-size:0.82rem;color:var(--text-2);margin-bottom:8px;font-weight:600">Excel Modu</label>
+                <select id="excelModeSelect" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1);color:var(--text);font-size:0.88rem;font-family:inherit">
+                  <option value="daily" style="background:var(--surface-1);color:var(--text)">Günlük Excel (Önerilen) - Her gün ayrı dosya</option>
+                  <option value="single" style="background:var(--surface-1);color:var(--text)">Tek Excel - Tüm kayıtlar bir dosyada</option>
+                  <option value="shift" style="background:var(--surface-1);color:var(--text)">Vardiya Excel - Saat aralıklarına göre</option>
+                </select>
+              </div>
+              
+              <div id="vardiyaBolumu" style="display:none">
+                <div id="vardiyaListesi"></div>
+                
+                <div style="margin-top:20px;padding:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">
+                  <h3 style="font-size:0.9rem;font-weight:600;margin-bottom:14px;color:var(--text)">Yeni Vardiya Ekle</h3>
+                  <div style="display:grid;gap:12px">
+                    <div>
+                      <label style="display:block;font-size:0.82rem;color:var(--text-2);margin-bottom:6px">Vardiya Adı</label>
+                      <input type="text" id="yeniVardiyaAd" placeholder="Gündüz, Gece, Sabah..." style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1);color:var(--text);font-size:0.88rem" />
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                      <div>
+                        <label style="display:block;font-size:0.82rem;color:var(--text-2);margin-bottom:6px">Başlangıç Saati</label>
+                        <input type="time" id="yeniVardiyaBaslangic" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1);color:var(--text);font-size:0.88rem" />
+                      </div>
+                      <div>
+                        <label style="display:block;font-size:0.82rem;color:var(--text-2);margin-bottom:6px">Bitiş Saati</label>
+                        <input type="time" id="yeniVardiyaBitis" style="width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--surface-1);color:var(--text);font-size:0.88rem" />
+                      </div>
+                    </div>
+                    <button class="dugme kucuk" type="button" id="vardiyaEkleBtn">
+                      <span data-ikon="ekle"></span>
+                      <span>Vardiya Ekle</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              <button class="dugme kucuk" type="button" id="excelKaydetBtn" style="margin-top:16px">
+                <span data-ikon="onay"></span>
+                <span>Ayarları Kaydet</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="kart">
+            <div class="kart-bas">
+              <h2>Veri Yönetimi</h2>
+            </div>
+            <div class="kart-govde">
+              <ol class="adimlar">
+                <li><span><b>Excel dosyası</b> — <code class="kisayol">companion/data/</code> klasöründe saklanır.</span></li>
+                <li><span><b>Güvenlik günlüğü</b> — <code class="kisayol">kayitlar.jsonl</code> dosyası silinse bile Excel bundan yeniden üretilir.</span></li>
+                <li><span><b>Otomatik yedekleme</b> — Her 1000 kayıtta bir yedek klasörüne anlık görüntü alınır.</span></li>
               </ol>
             </div>
           </div>
@@ -66,25 +144,15 @@
 
         <section class="izgara-2" style="margin-top:14px">
           <div class="kart">
-            <div class="kart-bas"><h2>Veri ve dosyalar</h2></div>
-            <div class="kart-govde">
-              <ol class="adimlar">
-                <li><span><b>Excel dosyası</b> — <code class="kisayol">companion/data/kayitlar.xlsx</code>. Her yeni kayıtta yeniden yazılır.</span></li>
-                <li><span><b>Güvenlik günlüğü</b> — <code class="kisayol">kayitlar.jsonl</code>. Silinse bile Excel bundan yeniden üretilir.</span></li>
-                <li><span><b>Yedekler</b> — <code class="kisayol">companion/data/yedek/</code> klasörüne her 1000 kayıtta bir anlık görüntü alınır.</span></li>
-                <li><span><b>Anahtar</b> — <code class="kisayol">companion/config.json</code>. Buradan görülebilir; telefonla aynıdır.</span></li>
-              </ol>
+            <div class="kart-bas">
+              <h2>Hızlı Erişim</h2>
             </div>
-          </div>
-
-          <div class="kart">
-            <div class="kart-bas"><h2>Kısayollar</h2></div>
             <div class="kart-govde">
               <ol class="adimlar">
-                <li><span><b>Arama</b> — kayıtlar sayfasındaki arama kutusu; Türkçe karakter duyarsızdır.</span></li>
-                <li><span><b>Tema</span> — üst çubuktaki düğme <span class="kisayol" id="tusYolu">—</span></span></li>
-                <li><span><b>Yenileme</b> — liste zaten kendini günceller; elle yenilemeniz gerekmez.</span></li>
-                <li><span><b>Yazdırma</b> — kayıtlar sayfasındaki tabloyu doğrudan yazdırabilirsiniz.</span></li>
+                <li><span><b>Telefon eşleştirme</b> — QR kod okutarak anında bağlanın.</span></li>
+                <li><span><b>Kayıt arama</b> — Plaka, isim veya firma bilgisiyle arama yapabilirsiniz.</span></li>
+                <li><span><b>Canlı güncelleme</b> — Yeni kayıtlar otomatik olarak listelere eklenir.</span></li>
+                <li><span><b>Tema değiştirme</b> — Üst çubuktaki düğme veya yukarıdaki seçeneklerle.</span></li>
               </ol>
             </div>
           </div>
@@ -107,54 +175,173 @@
     function temaEtiketGuncelle() {
       var t = document.documentElement.getAttribute("data-tema");
       document.getElementById("temaEtiket").textContent = t === "acik" ? "Aydınlık" : "Koyu";
-      document.getElementById("temaDurum").textContent = t === "acik" ? "acik" : "koyu";
     }
+    
     document.querySelectorAll("[data-tema-sec]").forEach(function (b) {
       b.addEventListener("click", function () {
         var t = b.dataset.temaSec;
         CK.temaUygula(t);
-        try { localStorage.setItem("ck_sync_tema", t); } catch (e) { /* yoksay */ }
+        try { localStorage.setItem("ck_sync_tema", t); } catch (e) {}
         temaEtiketGuncelle();
         CK.bildir(t === "acik" ? "Aydınlık tema uygulandı" : "Koyu tema uygulandı", "olumlu");
       });
     });
+    
     document.getElementById("temaSistem").addEventListener("click", function () {
-      try { localStorage.removeItem("ck_sync_tema"); } catch (e) { /* yoksay */ }
+      try { localStorage.removeItem("ck_sync_tema"); } catch (e) {}
       CK.temaUygula(matchMedia("(prefers-color-scheme: light)").matches ? "acik" : "koyu");
       temaEtiketGuncelle();
       CK.bildir("Sistem tercihine dönüldü", "olumlu");
     });
+    
     temaEtiketGuncelle();
-    if (matchMedia("(pointer: coarse)").matches) {
-      document.getElementById("tusYolu").textContent = "düğme";
-    } else {
-      document.getElementById("tusYolu").textContent = "sol üstteki düğme";
-    }
 
     function durumCiz(d) {
       if (!d) return;
-      var satirlar = document.getElementById("durumSatirlari");
-      satirlar.innerHTML = "";
-      [
-        ["Çalışma süresi", CK.sureTR(d.uptimeSn) + (d.surum ? " · sürüm " + d.surum : "")],
-        ["Toplam kayıt", (d.kayitSayisi || 0) + " kayıt · " + (d.guncelleme || 0) + " düzenleme"],
-        ["Dosya boyutları", "Excel " + CK.bayt(d.excelBytes) + " · günlük " + CK.bayt(d.logBytes)],
-        ["Son yazma", d.sonYazma ? CK.tamZaman(d.sonYazma) : "henüz yok"],
-        ["Son hata", d.sonHata || "yok — her şey yolunda"],
-      ].forEach(function (c) {
-        var li = document.createElement("li");
-        li.innerHTML = "<span><b>" + c[0] + "</b> — " + CK.kacis(c[1]) + "</span>";
-        satirlar.appendChild(li);
-      });
-      document.getElementById("surum").textContent = d.surum ? "sürüm " + d.surum : "";
+      var bilgi = document.getElementById("durumBilgi");
+      bilgi.innerHTML = [
+        { label: "Çalışma süresi", value: CK.sureTR(d.uptimeSn) + (d.surum ? " · v" + d.surum : "") },
+        { label: "Toplam kayıt", value: (d.kayitSayisi || 0) + " kayıt" },
+        { label: "Excel boyutu", value: CK.bayt(d.excelBytes) },
+        { label: "Günlük boyutu", value: CK.bayt(d.logBytes) },
+        { label: "Son yazma", value: d.sonYazma ? CK.tamZaman(d.sonYazma) : "henüz yok" },
+      ].map(function(item) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">' +
+          '<span style="font-size:0.85rem;color:var(--text-2)">' + item.label + '</span>' +
+          '<span style="font-size:0.85rem;font-weight:600;color:var(--text);font-family:var(--mono)">' + CK.kacis(item.value) + '</span>' +
+        '</div>';
+      }).join('');
+      
+      document.getElementById("surum").textContent = d.surum ? "v" + d.surum : "";
+      
+      // Excel durumu güncelle
+      if (d.excel) {
+        excelSistemGuncelle(d.excel);
+      }
     }
+
+    // Excel sistemi yönetimi
+    var mevcutMod = 'daily';
+    var mevcutVardiyalar = [];
+    
+    function excelSistemGuncelle(excelData) {
+      if (!excelData) return;
+      mevcutMod = excelData.mode || 'daily';
+      mevcutVardiyalar = excelData.shifts || [];
+      
+      var durumBadge = document.getElementById("excelModDurum");
+      durumBadge.textContent = excelData.modeLabel || "—";
+      durumBadge.className = "rozet " + (mevcutMod === 'daily' ? "olumlu" : "");
+      
+      var modSelect = document.getElementById("excelModeSelect");
+      if (modSelect) modSelect.value = mevcutMod;
+      
+      var vardiyaBolumu = document.getElementById("vardiyaBolumu");
+      if (vardiyaBolumu) {
+        vardiyaBolumu.style.display = mevcutMod === 'shift' ? 'block' : 'none';
+      }
+      
+      if (mevcutMod === 'shift') {
+        vardiyaListesiGuncelle();
+      }
+    }
+    
+    document.getElementById("excelModeSelect").addEventListener("change", function() {
+      mevcutMod = this.value;
+      var vardiyaBolumu = document.getElementById("vardiyaBolumu");
+      vardiyaBolumu.style.display = mevcutMod === 'shift' ? 'block' : 'none';
+    });
+    
+    function vardiyaListesiGuncelle() {
+      var liste = document.getElementById("vardiyaListesi");
+      if (!liste) return;
+      
+      if (mevcutVardiyalar.length === 0) {
+        liste.innerHTML = '<p class="muted" style="font-size:0.85rem;text-align:center;padding:20px">Henüz vardiya tanımlanmamış</p>';
+        return;
+      }
+      
+      liste.innerHTML = '<div style="display:grid;gap:10px;margin-bottom:16px">' + mevcutVardiyalar.map(function(v, idx) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px">' +
+          '<div>' +
+            '<div style="font-size:0.9rem;font-weight:600;color:var(--text)">' + CK.kacis(v.name) + '</div>' +
+            '<div style="font-size:0.82rem;color:var(--text-2);margin-top:4px">' + CK.kacis(v.start) + ' - ' + CK.kacis(v.end) + '</div>' +
+          '</div>' +
+          '<button class="dugme sade kucuk" type="button" onclick="vardiyaSil(' + idx + ')" style="padding:8px 12px">' +
+            '<span data-ikon="sil"></span>' +
+          '</button>' +
+        '</div>';
+      }).join('') + '</div>';
+      
+      // İkonları güncelle
+      document.querySelectorAll("[data-ikon]").forEach(function (el) { 
+        if (!el.innerHTML) el.innerHTML = CK.ikon(el.dataset.ikon); 
+      });
+    }
+    
+    window.vardiyaSil = function(idx) {
+      if (!confirm('Bu vardiyayı silmek istediğinizden emin misiniz?')) return;
+      mevcutVardiyalar.splice(idx, 1);
+      vardiyaListesiGuncelle();
+    };
+    
+    document.getElementById("vardiyaEkleBtn").addEventListener("click", function() {
+      var ad = document.getElementById("yeniVardiyaAd").value.trim();
+      var baslangic = document.getElementById("yeniVardiyaBaslangic").value;
+      var bitis = document.getElementById("yeniVardiyaBitis").value;
+      
+      if (!ad || !baslangic || !bitis) {
+        CK.bildir('Tüm alanları doldurun', 'uyari');
+        return;
+      }
+      
+      mevcutVardiyalar.push({ name: ad, start: baslangic, end: bitis });
+      vardiyaListesiGuncelle();
+      
+      // Formu temizle
+      document.getElementById("yeniVardiyaAd").value = "";
+      document.getElementById("yeniVardiyaBaslangic").value = "";
+      document.getElementById("yeniVardiyaBitis").value = "";
+      
+      CK.bildir('Vardiya eklendi: ' + ad, 'olumlu');
+    });
+    
+    document.getElementById("excelKaydetBtn").addEventListener("click", function() {
+      if (mevcutMod === 'shift' && mevcutVardiyalar.length === 0) {
+        CK.bildir('Vardiya modu için en az 1 vardiya ekleyin', 'uyari');
+        return;
+      }
+      
+      CK.istek('/excel-ayar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: mevcutMod, shifts: mevcutVardiyalar })
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        if (data.ok) {
+          CK.bildir(data.message || 'Excel ayarları kaydedildi', 'olumlu');
+          if (data.requiresRestart) {
+            setTimeout(function() {
+              CK.bildir('Sunucuyu yeniden başlatın', 'uyari');
+            }, 2000);
+          }
+          canliBag.tazele();
+        } else {
+          CK.bildir(data.error || 'İşlem başarısız', 'hatali');
+        }
+      })
+      .catch(function() {
+        CK.bildir('Bağlantı hatası', 'hatali');
+      });
+    });
 
     var canliEl = document.getElementById("canli");
     var canliBag = new CK.Canli(function () {
       this.durumTetik = durumCiz;
       this.izle(function (aktif, veri) {
         canliEl.className = "canli " + (aktif ? "aktif" : "hata");
-        canliEl.lastElementChild.textContent = aktif ? "Canlı" : "Bekleniyor";
+        canliEl.lastElementChild.textContent = aktif ? "Çevrimiçi" : "Bağlantı Bekleniyor";
         if (veri && veri.durum) durumCiz(veri.durum);
       });
       this.tazele();

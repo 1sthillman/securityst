@@ -17,7 +17,7 @@
  *     yakalanmamış hatalarda process ölmez, pm2 watchdog olarak arkada durur.
  *
  * Endpoint'ler:
- *  POST /kayit        tek kayıt   { id|uid, site, unit, courier, company?|firma?, plate, guard, note?, date?, time?, ts?, dev?, deleted? }
+ *  POST /kayit        tek kayıt   { id|uid, site, unit, courier, company?|firma?, plate, guard, note?, type?, date?, time?, ts?, dev?, deleted? }
  *  POST /kayit/batch  toplu kayıt { records: [...] }  (telefon flush'u için verimli)
  *  GET  /saglik       sağlık + sayaç
  *  GET  /durum        detaylı durum (kuyruk yok, dosya boyutları) — token ister
@@ -32,8 +32,9 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const XLSX = require('xlsx');
-const qrCode = require('./qr.js'); // çevrimdışı eşleşme QR üreteci (bağımlılıksız)
-const tls = require('./net/tls.js'); // HTTPS + yerel kök CA (İSTEĞE BAĞLI canlı önizleme)
+const qrCode = require('./qr.js');
+const tls = require('./net/tls.js');
+const SelfHealing = require('./self-heal.js');
 
 /**
  * Sürüm: TEK doğruluk kaynağı package.json.
@@ -109,13 +110,175 @@ const PORT = parseInt(process.env.PORT || fileCfg.port || '4545', 10);
 // yüzü OLMALI. Ayrıntı ve ölçüm: companion/net/tls.js
 const HTTPS_PORT = parseInt(process.env.HTTPS_PORT || fileCfg.httpsPort || (PORT + 1), 10);
 const DATA_DIR = process.env.DATA_DIR || fileCfg.dataDir || path.join(__dirname, 'data');
-const EXCEL_PATH = path.join(DATA_DIR, 'kayitlar.xlsx');
+
+// ==================== EXCEL AYIRMA SİSTEMİ ====================
+// Kayıtları nasıl gruplandıracağız?
+// Modlar:
+// - "single": Tek Excel dosyası (kayitlar.xlsx) - Varsayılan
+// - "daily": Günlük Excel (kayitlar-2026-10-03.xlsx) - ÖNERİLEN
+// - "shift": Vardiya bazlı Excel (kayitlar-Sabah.xlsx)
+//
+// Örnek config.json:
+// {
+//   "excelMode": "daily"
+// }
+// veya
+// {
+//   "excelMode": "shift",
+//   "shifts": [
+//     { "name": "Sabah", "start": "08:00", "end": "16:00" },
+//     { "name": "Aksam", "start": "16:00", "end": "00:00" },
+//     { "name": "Gece", "start": "00:00", "end": "08:00" }
+//   ]
+// }
+
+const EXCEL_MODE = fileCfg.excelMode || 'daily'; // 'single', 'daily', 'shift'
+const SHIFTS = fileCfg.shifts || [];
+
+/**
+ * Tarih string'i oluştur (YYYY-MM-DD formatında).
+ * @param {Date} date - Tarih
+ * @returns {string} - "2026-10-03"
+ */
+function getDateString(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Hangi vardiyada olduğumuzu belirle (shift modu için).
+ * @param {Date} date - Zaman damgası
+ * @returns {object|null} - { start: '08:00', end: '16:00', name: 'Sabah' }
+ */
+function getCurrentShift(date = new Date()) {
+  if (EXCEL_MODE !== 'shift' || !SHIFTS.length) return null;
+  
+  const hour = date.getHours();
+  const minute = date.getMinutes();
+  const currentMinutes = hour * 60 + minute;
+  
+  for (const shift of SHIFTS) {
+    const [startH, startM] = shift.start.split(':').map(Number);
+    const [endH, endM] = shift.end.split(':').map(Number);
+    const startMinutes = startH * 60 + startM;
+    let endMinutes = endH * 60 + endM;
+    
+    // Gece vardiyası: bitiş saati başlangıçtan küçükse (örn: 22:00-06:00)
+    if (endMinutes <= startMinutes) {
+      if (currentMinutes >= startMinutes || currentMinutes < endMinutes) {
+        return shift;
+      }
+    } else {
+      if (currentMinutes >= startMinutes && currentMinutes < endMinutes) {
+        return shift;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Kaydın hangi Excel dosyasına gideceğini belirle.
+ * @param {number} ts - Kayıt zaman damgası
+ * @returns {string} - Excel dosya yolu
+ */
+function getExcelPathForRecord(ts) {
+  const date = new Date(ts);
+  
+  if (EXCEL_MODE === 'daily') {
+    // Günlük Excel: kayitlar-2026-10-03.xlsx
+    const dateStr = getDateString(date);
+    return path.join(DATA_DIR, `kayitlar-${dateStr}.xlsx`);
+  } else if (EXCEL_MODE === 'shift') {
+    // Vardiya Excel: kayitlar-Sabah.xlsx
+    const shift = getCurrentShift(date);
+    if (shift) {
+      const safeName = shift.name.replace(/[^a-zA-Z0-9-_]/g, '');
+      return path.join(DATA_DIR, `kayitlar-${safeName}.xlsx`);
+    }
+  }
+  
+  // Varsayılan: tek Excel
+  return path.join(DATA_DIR, 'kayitlar.xlsx');
+}
+
+/**
+ * Tüm Excel dosyaları listesi (mevcut modda).
+ * @returns {Array<{name: string, path: string, type: string}>}
+ */
+function getAllExcelPaths() {
+  const paths = [];
+  
+  if (EXCEL_MODE === 'daily') {
+    // Son 30 günün Excel dosyalarını listele
+    const today = new Date();
+    for (let i = 0; i < 30; i++) {
+      const date = new Date(today);
+      date.setDate(date.getDate() - i);
+      const dateStr = getDateString(date);
+      const excelPath = path.join(DATA_DIR, `kayitlar-${dateStr}.xlsx`);
+      
+      // Dosya varsa ekle
+      try {
+        if (fs.existsSync(excelPath)) {
+          paths.push({
+            name: dateStr,
+            path: excelPath,
+            type: 'daily',
+            date: dateStr
+          });
+        }
+      } catch {}
+    }
+  } else if (EXCEL_MODE === 'shift') {
+    SHIFTS.forEach(shift => {
+      const safeName = shift.name.replace(/[^a-zA-Z0-9-_]/g, '');
+      paths.push({
+        name: shift.name,
+        path: path.join(DATA_DIR, `kayitlar-${safeName}.xlsx`),
+        type: 'shift',
+        shift: shift
+      });
+    });
+  } else {
+    // Single mode
+    paths.push({
+      name: 'Tüm Kayıtlar',
+      path: path.join(DATA_DIR, 'kayitlar.xlsx'),
+      type: 'single'
+    });
+  }
+  
+  return paths;
+}
+
+const EXCEL_PATH = path.join(DATA_DIR, 'kayitlar.xlsx'); // Varsayılan (vardiya yoksa)
 const LOG_PATH = path.join(DATA_DIR, 'kayitlar.jsonl');
 const DEDUPE_PATH = path.join(DATA_DIR, 'seen-ids.json');
+
+// Plaka veritabanı dosyaları
+const PLATE_EXCEL_PATH = path.join(DATA_DIR, 'plakalar.xlsx');
+const PLATE_LOG_PATH = path.join(DATA_DIR, 'plakalar.jsonl');
+const PLATE_DEDUPE_PATH = path.join(DATA_DIR, 'seen-plate-ids.json');
+
+// Site/Blok veritabanı dosyaları
+const SITE_EXCEL_PATH = path.join(DATA_DIR, 'siteler.xlsx');
+const SITE_LOG_PATH = path.join(DATA_DIR, 'siteler.jsonl');
+const SITE_DEDUPE_PATH = path.join(DATA_DIR, 'seen-site-ids.json');
 
 // Eslesme izin listesi: hangi cihaz anahtar alabilir?
 const ESLESME_YOLU = path.join(DATA_DIR, 'eslesmeler.json');
 const BACKUP_DIR = path.join(DATA_DIR, 'yedek');
+
+// Self-healing sistemi başlat
+const healer = new SelfHealing({
+  dataDir: DATA_DIR,
+  checkInterval: 60000, // 1 dakikada bir kontrol
+  maxBackups: 15
+});
 
 // Token: env > config.json > env.example uyarısı. Yoksa rastgele üretip dosyaya yazma
 // (güvenlik için her açılışta değişen token telefonu koparır — bu yüzden kalıcı olmalı).
@@ -178,7 +341,18 @@ for (const d of [DATA_DIR, BACKUP_DIR]) {
 
 function log(level, ...args) {
   const ts = new Date().toISOString();
-  const line = `[${ts}] [${level}] ${args.map(String).join(' ')}`;
+  // Objeleri JSON'a çevir, diğerlerini String'e
+  const formatted = args.map(arg => {
+    if (arg && typeof arg === 'object' && !Array.isArray(arg)) {
+      try {
+        return JSON.stringify(arg, null, 2);
+      } catch (e) {
+        return String(arg);
+      }
+    }
+    return String(arg);
+  }).join(' ');
+  const line = `[${ts}] [${level}] ${formatted}`;
   if (level === 'ERROR' || level === 'KRITIK') console.error(line);
   else console.log(line);
 }
@@ -244,6 +418,85 @@ function loadSeenIds() {
   log('INFO', `Dedup yüklendi: ${seenIds.size} kayıt (log:${fromLog.size}, dosya:${fromFile ? fromFile.size : 0})`);
 }
 
+// ---------------------------------------------------------------------------
+// 2b. Plaka Dedup Sistemi (kayıtlarla aynı mimari)
+// ---------------------------------------------------------------------------
+
+/** @type {Set<string>} */
+let seenPlateIds = new Set();
+/** id → updatedAt (upsert karşılaştırması; log'dan yeniden kurulur) */
+const plateIdUpdated = new Map();
+let plateUpdateCount = 0;
+
+function rebuildSeenPlateIdsFromLog() {
+  const fromLog = new Set();
+  try {
+    if (!fs.existsSync(PLATE_LOG_PATH)) return fromLog;
+    const raw = fs.readFileSync(PLATE_LOG_PATH, 'utf8');
+    for (const line of raw.split('\n')) {
+      const t = line.trim();
+      if (!t) continue;
+      try {
+        const r = JSON.parse(t);
+        if (r && typeof r.id === 'string' && r.id) {
+          fromLog.add(r.id);
+          const ts = typeof r.updatedAt === 'number' ? r.updatedAt : 0;
+          if (ts > (plateIdUpdated.get(r.id) || 0)) plateIdUpdated.set(r.id, ts);
+        }
+      } catch {
+        // bozuk satır atlanır, log korunur
+      }
+    }
+  } catch (e) {
+    log('ERROR', 'Plaka log okunamadı (seenPlateIds rebuild):', e.message);
+  }
+  return fromLog;
+}
+
+function loadSeenPlateIds() {
+  let fromFile = null;
+  try {
+    if (fs.existsSync(PLATE_DEDUPE_PATH)) {
+      fromFile = new Set(JSON.parse(fs.readFileSync(PLATE_DEDUPE_PATH, 'utf8')));
+    }
+  } catch (e) {
+    log('ERROR', 'seen-plate-ids.json bozuk, log üzerinden yeniden kurulacak:', e.message);
+    try {
+      fs.renameSync(PLATE_DEDUPE_PATH, PLATE_DEDUPE_PATH + '.bozuk-' + Date.now());
+    } catch {}
+  }
+  const fromLog = rebuildSeenPlateIdsFromLog();
+  const merged = new Set([...fromLog, ...(fromFile || [])]);
+  seenPlateIds = merged;
+  persistSeenPlateIds();
+  log('INFO', `Plaka dedup yüklendi: ${seenPlateIds.size} plaka (log:${fromLog.size}, dosya:${fromFile ? fromFile.size : 0})`);
+}
+
+let persistPlateTimer = null;
+function persistSeenPlateIds() {
+  if (persistPlateTimer) return;
+  persistPlateTimer = setTimeout(() => {
+    persistPlateTimer = null;
+    try {
+      const tmp = PLATE_DEDUPE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify([...seenPlateIds]));
+      fs.renameSync(tmp, PLATE_DEDUPE_PATH);
+    } catch (e) {
+      log('ERROR', 'seen-plate-ids yazılamadı:', e.message);
+    }
+  }, 200);
+}
+
+function persistSeenPlateIdsSync() {
+  try {
+    const tmp = PLATE_DEDUPE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify([...seenPlateIds]));
+    fs.renameSync(tmp, PLATE_DEDUPE_PATH);
+  } catch (e) {
+    log('ERROR', 'seen-plate-ids sync yazılamadı:', e.message);
+  }
+}
+
 let persistTimer = null;
 function persistSeenIds() {
   // Disk yazmayı serileştir: sık çağrılarda debounce.
@@ -292,6 +545,50 @@ function validateRecord(r) {
   return null;
 }
 
+function validatePlate(p) {
+  if (!p || typeof p !== 'object') return 'Plaka kaydı obje olmalı';
+  const id = p.id !== undefined ? p.id : p.uid;
+  if (!id || typeof id !== 'string' || id.length < 8 || id.length > 128)
+    return 'Eksik/geçersiz id';
+  if (!p.plate || typeof p.plate !== 'string' || !p.plate.trim())
+    return 'Eksik plaka';
+  if (p.plate.trim().length > 32) return 'Plaka çok uzun';
+  for (const k of ['name', 'company', 'type', 'note', 'phone', 'dev']) {
+    if (p[k] !== undefined && typeof p[k] !== 'string') return `Geçersiz alan: ${k}`;
+    if (typeof p[k] === 'string' && p[k].length > 200) return `Alan çok uzun: ${k}`;
+  }
+  if (p.seen !== undefined && typeof p.seen !== 'number') return 'seen sayı olmalı';
+  if (p.deleted !== undefined && typeof p.deleted !== 'boolean') return 'deleted boolean olmalı';
+  return null;
+}
+
+function sanitizePlate(p) {
+  const s = (v) => (typeof v === 'string' ? v.trim() : '');
+  const n = (v) => (typeof v === 'number' && v >= 0 ? v : 0);
+  return {
+    id: String(p.id !== undefined ? p.id : p.uid).trim(),
+    plate: s(p.plate).toUpperCase(),
+    key: s(p.key || plateKey(p.plate)),
+    name: s(p.name),
+    company: s(p.company),
+    type: s(p.type || p.tur || 'Kurye'),
+    note: s(p.note || ''),
+    phone: s(p.phone || ''),
+    ts: typeof p.ts === 'number' ? p.ts : Date.now(),
+    updatedAt: typeof p.updatedAt === 'number' ? p.updatedAt : (typeof p.ts === 'number' ? p.ts : 0),
+    dev: s(p.dev),
+    seen: n(p.seen),
+    deleted: p.deleted === true,
+  };
+}
+
+function plateKey(plate) {
+  // Normalize: büyük harf, boşluksuz, benzer karakterleri düzelt
+  return String(plate || '').toUpperCase().replace(/[^0-9A-Z]/g, '')
+    .replace(/[OQD]/g, '0').replace(/[IL]/g, '1').replace(/S/g, '5')
+    .replace(/Z/g, '2').replace(/G/g, '6');
+}
+
 function sanitizeRecord(r) {
   const s = (v) => (typeof v === 'string' ? v.trim() : '');
   return {
@@ -303,6 +600,7 @@ function sanitizeRecord(r) {
     plate: s(r.plate).toUpperCase(),
     guard: s(r.guard),
     note: s(r.note || ''),
+    type: s(r.type || r.tur || 'Kurye'),
     date: s(r.date),
     time: s(r.time),
     ts: typeof r.ts === 'number' ? r.ts : Date.now(),
@@ -357,6 +655,305 @@ function readAllLogRecords() {
   return { rows, corrupt };
 }
 
+function readAllPlateRecords() {
+  if (!fs.existsSync(PLATE_LOG_PATH)) return { rows: [], corrupt: 0 };
+  const raw = fs.readFileSync(PLATE_LOG_PATH, 'utf8');
+  const rows = [];
+  let corrupt = 0;
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      rows.push(JSON.parse(t));
+    } catch {
+      corrupt++;
+    }
+  }
+  return { rows, corrupt };
+}
+
+// ==================== SİTE/BLOK VERİTABANI ====================
+
+const seenSiteIds = new Set();
+const siteIdUpdated = new Map();
+let siteUpdateCount = 0;
+
+function rebuildSeenSiteIdsFromLog() {
+  const { rows } = readAllSiteRecords();
+  const s = new Set();
+  const m = new Map();
+  for (const r of rows) {
+    if (r && r.id) {
+      s.add(r.id);
+      m.set(r.id, r.updatedAt || 0);
+    }
+  }
+  return { set: s, map: m };
+}
+
+function loadSeenSiteIds() {
+  let fromLog = new Set();
+  let mapLog = new Map();
+  try {
+    const x = rebuildSeenSiteIdsFromLog();
+    fromLog = x.set;
+    mapLog = x.map;
+  } catch (e) {
+    log('ERROR', 'Site log okunamadı:', e.message);
+  }
+
+  let fromFile = null;
+  if (fs.existsSync(SITE_DEDUPE_PATH)) {
+    try {
+      const arr = JSON.parse(fs.readFileSync(SITE_DEDUPE_PATH, 'utf8'));
+      fromFile = new Set(arr);
+    } catch {}
+  }
+
+  const merged = new Set([...fromLog, ...(fromFile || [])]);
+  seenSiteIds.clear();
+  for (const id of merged) seenSiteIds.add(id);
+  
+  siteIdUpdated.clear();
+  for (const [id, ts] of mapLog) siteIdUpdated.set(id, ts);
+  
+  persistSeenSiteIds();
+  log('INFO', `Site dedup yüklendi: ${seenSiteIds.size} site (log:${fromLog.size}, dosya:${fromFile ? fromFile.size : 0})`);
+}
+
+let persistSiteTimer = null;
+function persistSeenSiteIds() {
+  if (persistSiteTimer) return;
+  persistSiteTimer = setTimeout(() => {
+    persistSiteTimer = null;
+    try {
+      const tmp = SITE_DEDUPE_PATH + '.tmp';
+      fs.writeFileSync(tmp, JSON.stringify([...seenSiteIds]));
+      fs.renameSync(tmp, SITE_DEDUPE_PATH);
+    } catch (e) {
+      log('ERROR', 'seen-site-ids yazılamadı:', e.message);
+    }
+  }, 200);
+}
+
+function persistSeenSiteIdsSync() {
+  try {
+    const tmp = SITE_DEDUPE_PATH + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify([...seenSiteIds]));
+    fs.renameSync(tmp, SITE_DEDUPE_PATH);
+  } catch (e) {
+    log('ERROR', 'seen-site-ids sync yazılamadı:', e.message);
+  }
+}
+
+function readAllSiteRecords() {
+  if (!fs.existsSync(SITE_LOG_PATH)) return { rows: [], corrupt: 0 };
+  const raw = fs.readFileSync(SITE_LOG_PATH, 'utf8');
+  const rows = [];
+  let corrupt = 0;
+  for (const line of raw.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      rows.push(JSON.parse(t));
+    } catch {
+      corrupt++;
+    }
+  }
+  return { rows, corrupt };
+}
+
+function validateSite(s) {
+  if (!s || typeof s !== 'object') return 'Geçersiz site nesnesi';
+  if (!s.id || typeof s.id !== 'string') return 'id gerekli';
+  if (!s.name || typeof s.name !== 'string') return 'name gerekli';
+  return null;
+}
+
+function sanitizeSite(s) {
+  return {
+    id: String(s.id || '').trim(),
+    name: String(s.name || '').trim(),
+    street: String(s.street || '').trim(),
+    lat: typeof s.lat === 'number' ? s.lat : null,
+    lng: typeof s.lng === 'number' ? s.lng : null,
+    units: Array.isArray(s.units) ? s.units.map(u => ({
+      c: String(u.c || u).trim(),
+      entry: String(u.entry || '').trim(),
+      lat: typeof u.lat === 'number' ? u.lat : null,
+      lng: typeof u.lng === 'number' ? u.lng : null,
+      qr: String(u.qr || '').trim()
+    })) : [],
+    box: Array.isArray(s.box) && s.box.length === 4 ? s.box : null,
+    updatedAt: s.updatedAt || Date.now(),
+    deleted: s.deleted === true
+  };
+}
+
+const siteWriteQueue = [];
+let siteWriteRunning = false;
+
+function enqueueSiteWrite(fn) {
+  return new Promise((resolve, reject) => {
+    siteWriteQueue.push({ fn, resolve, reject });
+    if (!siteWriteRunning) runSiteWriteQueue();
+  });
+}
+
+async function runSiteWriteQueue() {
+  if (siteWriteRunning || !siteWriteQueue.length) return;
+  siteWriteRunning = true;
+  while (siteWriteQueue.length) {
+    const { fn, resolve, reject } = siteWriteQueue.shift();
+    try {
+      await fn();
+      resolve();
+    } catch (e) {
+      reject(e);
+    }
+  }
+  siteWriteRunning = false;
+}
+
+function appendSiteLogLine(site) {
+  fs.appendFileSync(SITE_LOG_PATH, JSON.stringify(site) + '\n', 'utf8');
+}
+
+function replaceSiteLogLine(id, site) {
+  const raw = fs.readFileSync(SITE_LOG_PATH, 'utf8').split('\n');
+  let found = false;
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i].trim();
+    if (!t) continue;
+    try {
+      if (JSON.parse(t).id === id) {
+        raw[i] = JSON.stringify(site);
+        found = true;
+        break;
+      }
+    } catch {}
+  }
+  if (!found) {
+    fs.appendFileSync(SITE_LOG_PATH, JSON.stringify(site) + '\n', 'utf8');
+    return false;
+  }
+  const tmp = SITE_LOG_PATH + '.tmp';
+  fs.writeFileSync(tmp, raw.join('\n'), 'utf8');
+  fs.renameSync(tmp, SITE_LOG_PATH);
+  return true;
+}
+
+function toSiteExcelRow(s) {
+  return {
+    'Site ID': s.id,
+    'Site Adı': s.name,
+    'Sokak': s.street || '',
+    'Enlem': s.lat || '',
+    'Boylam': s.lng || '',
+    'Ünite Sayısı': s.units ? s.units.length : 0,
+    'Üniteler': s.units ? s.units.map(u => u.c).join(', ') : '',
+    'Güncelleme': s.updatedAt ? new Date(s.updatedAt).toLocaleString('tr-TR') : ''
+  };
+}
+
+function rebuildSiteExcelFromLog() {
+  const { rows, corrupt } = readAllSiteRecords();
+  if (corrupt > 0) log('ERROR', `Site log'da ${corrupt} bozuk satır atlandı.`);
+
+  const live = rows.filter(s => s && s.deleted !== true);
+  live.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  const sheetRows = live.map(toSiteExcelRow);
+  const ws = XLSX.utils.json_to_sheet(sheetRows, {
+    header: ['Site ID', 'Site Adı', 'Sokak', 'Enlem', 'Boylam', 'Ünite Sayısı', 'Üniteler', 'Güncelleme']
+  });
+  ws['!cols'] = [
+    { wch: 20 }, { wch: 25 }, { wch: 20 }, { wch: 12 }, { wch: 12 },
+    { wch: 12 }, { wch: 40 }, { wch: 18 }
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Siteler');
+
+  const tmpPath = SITE_EXCEL_PATH + '.tmp';
+  XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
+  fs.renameSync(tmpPath, SITE_EXCEL_PATH);
+}
+
+function doSiteAppendSync(sanitized) {
+  appendSiteLogLine(sanitized);
+  seenSiteIds.add(sanitized.id);
+  persistSeenSiteIds();
+  rebuildSiteExcelFromLog();
+}
+
+function acceptSiteOne(raw) {
+  const err = validateSite(raw);
+  if (err) {
+    const e = new Error(err);
+    e.statusCode = 400;
+    throw e;
+  }
+  const rec = sanitizeSite(raw);
+  if (seenSiteIds.has(rec.id)) {
+    if (rec.updatedAt > (siteIdUpdated.get(rec.id) || 0)) {
+      return enqueueSiteWrite(() => {
+        replaceSiteLogLine(rec.id, rec);
+        siteIdUpdated.set(rec.id, rec.updatedAt);
+        rebuildSiteExcelFromLog();
+        siteUpdateCount++;
+        broadcast('site', { tip: 'guncel', site: rec });
+      }).then(() => 'updated');
+    }
+    return Promise.resolve('duplicate');
+  }
+  return enqueueSiteWrite(() => {
+    doSiteAppendSync(rec);
+    siteIdUpdated.set(rec.id, rec.updatedAt);
+    broadcast('site', { tip: 'yeni', site: rec });
+  }).then(() => 'created');
+}
+
+/**
+ * Gorsentinin ORTALAMA parlakligi (0-255).
+ *
+ * OLCUMLE KALIBRE EDILDI (29.09.2026, 5 gercek fotograf, 5 bilinen
+ * plakanin ortalamasi):
+ *     gunduz (1.00)   ort=148.0   okuma 5/5
+ *     alacakaranlik   ort=106.8   okuma 3/5
+ *     az isik (0.50)  ort= 85.7   okuma 2/5
+ *     karanlik (0.40) ort= 72.2   okuma 0/5   <- kirilma burada
+ *     gece (0.30)     ort= 61.6   okuma 0/5
+ *     derin gece      ort= 55.4   okuma 0/5
+ * ESIK = 78: calisan (85.7) ile calismayan (72.2) arasinda; bu yuzden
+ * okunabilen kareleri kesmez.
+ *
+ * p99-p50 KULLANILMADI: ayirt edici degil. gunduzde 54, alacakaranlikta
+ * 100, karanlikta 124 — okunabilen karede kucuk, okunamayan karede buyuk.
+ *
+ * @returns {number|null} ortalama parlaklik; cözülemezse null (bu durumda
+ *   kontrol atlanir ve normal yol calisir).
+ */
+function ortalamaParlaklik(tampon) {
+  try {
+    const a = yoloPlaka.ac(tampon);
+    if (!a) return null;
+    const n = a.g * a.y;
+    if (!n) return null;
+    const K = a.kanal;
+    let toplam = 0;
+    // her 4. piksel (yeterli ve belirgin sekilde hizli)
+    for (let i = 0; i < n; i += 4) {
+      const o = i * K;
+      toplam += K >= 3
+        ? (a.veri[o] * 299 + a.veri[o + 1] * 587 + a.veri[o + 2] * 114) / 1000
+        : a.veri[o];
+    }
+    return toplam / Math.ceil(n / 4);
+  } catch (e) {
+    return null;
+  }
+}
+
 function trDate(ts) {
   try { return new Date(ts).toLocaleDateString('tr-TR'); } catch { return ''; }
 }
@@ -368,6 +965,7 @@ function toExcelRow(r) {
   return {
     Blok: r.site || '',
     Daire: r.unit || '',
+    Tür: r.type || r.tur || 'Kurye',
     Kurye: r.courier || '',
     Firma: r.company || '',
     Plaka: r.plate || '',
@@ -385,25 +983,89 @@ function rebuildExcelFromLog() {
 
   // Silinmiş (deleted) kayıtlar Excel'e girmez ama log'da denetim için kalır.
   const live = rows.filter((r) => r && r.deleted !== true);
-  // Tarih/saat + ts sırasına göre stabil sırala (telefon sırası korunur).
-  live.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+  
+  if (EXCEL_MODE === 'daily') {
+    // GÜNLÜK MOD: Her gün için ayrı Excel
+    const groupedByDate = {};
+    
+    live.forEach(r => {
+      const dateStr = getDateString(new Date(r.ts));
+      if (!groupedByDate[dateStr]) groupedByDate[dateStr] = [];
+      groupedByDate[dateStr].push(r);
+    });
+    
+    let fileCount = 0;
+    Object.keys(groupedByDate).forEach(dateStr => {
+      const dayRecords = groupedByDate[dateStr];
+      dayRecords.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      
+      const sheetRows = dayRecords.map(toExcelRow);
+      const ws = XLSX.utils.json_to_sheet(sheetRows, {
+        header: ['Blok', 'Daire', 'Tür', 'Kurye', 'Firma', 'Plaka', 'Görevli', 'Not', 'Tarih', 'Saat'],
+      });
+      ws['!cols'] = [
+        { wch: 10 }, { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 16 },
+        { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 8 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, dateStr);
+      
+      const excelPath = path.join(DATA_DIR, `kayitlar-${dateStr}.xlsx`);
+      const tmpPath = excelPath + '.tmp';
+      XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
+      fs.renameSync(tmpPath, excelPath);
+      fileCount++;
+    });
+    
+    log('INFO', `${fileCount} günlük Excel dosyası güncellendi.`);
+  } else if (EXCEL_MODE === 'shift') {
+    // VARDİYA MODU: Her vardiya için ayrı Excel
+    SHIFTS.forEach(shift => {
+      const shiftRecords = live.filter(r => {
+        const recordShift = getCurrentShift(new Date(r.ts));
+        return recordShift && recordShift.name === shift.name;
+      });
+      
+      shiftRecords.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+      
+      const sheetRows = shiftRecords.map(toExcelRow);
+      const ws = XLSX.utils.json_to_sheet(sheetRows, {
+        header: ['Blok', 'Daire', 'Tür', 'Kurye', 'Firma', 'Plaka', 'Görevli', 'Not', 'Tarih', 'Saat'],
+      });
+      ws['!cols'] = [
+        { wch: 10 }, { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 16 },
+        { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 8 },
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, shift.name);
+      
+      const safeName = shift.name.replace(/[^a-zA-Z0-9-_]/g, '');
+      const excelPath = path.join(DATA_DIR, `kayitlar-${safeName}.xlsx`);
+      const tmpPath = excelPath + '.tmp';
+      XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
+      fs.renameSync(tmpPath, excelPath);
+    });
+    
+    log('INFO', `${SHIFTS.length} vardiya Excel'i güncellendi.`);
+  } else {
+    // SINGLE MOD: Tek Excel (eski sistem)
+    live.sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    
+    const sheetRows = live.map(toExcelRow);
+    const ws = XLSX.utils.json_to_sheet(sheetRows, {
+      header: ['Blok', 'Daire', 'Tür', 'Kurye', 'Firma', 'Plaka', 'Görevli', 'Not', 'Tarih', 'Saat'],
+    });
+    ws['!cols'] = [
+      { wch: 10 }, { wch: 10 }, { wch: 11 }, { wch: 16 }, { wch: 16 },
+      { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 8 },
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Kayıtlar');
 
-  const sheetRows = live.map(toExcelRow);
-  const ws = XLSX.utils.json_to_sheet(sheetRows, {
-    header: ['Blok', 'Daire', 'Kurye', 'Firma', 'Plaka', 'Görevli', 'Not', 'Tarih', 'Saat'],
-  });
-  ws['!cols'] = [
-    { wch: 10 }, { wch: 10 }, { wch: 16 }, { wch: 16 },
-    { wch: 14 }, { wch: 14 }, { wch: 28 }, { wch: 12 }, { wch: 8 },
-  ];
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Kayıtlar');
-
-  // Atomik yazma (.tmp uzantısı xlsx kütüphanesine bookType'ı açık veriyoruz —
-  // yoksa "Unrecognized bookType |tmp|" hatası verir)
-  const tmpPath = EXCEL_PATH + '.tmp';
-  XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
-  fs.renameSync(tmpPath, EXCEL_PATH);
+    const tmpPath = EXCEL_PATH + '.tmp';
+    XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
+    fs.renameSync(tmpPath, EXCEL_PATH);
+  }
 }
 
 /** Gece yarısı yedeği değil; her 1000 kayıtta bir jsonl snapshot. Ucuz ve güvenli. */
@@ -422,6 +1084,111 @@ function doAppendSync(sanitized) {
   persistSeenIds();               // 3) dedup kalıcı (debounced)
   rebuildExcelFromLog();          // 4) excel türet
   maybeBackup();
+}
+
+// ---------------------------------------------------------------------------
+// 4b. Plaka Yazma Katmanı (kayıtlarla aynı mimari)
+// ---------------------------------------------------------------------------
+
+let plateWriteChain = Promise.resolve();
+let plateWriteQueueLen = 0;
+let lastPlateWriteAt = null;
+let lastPlateError = null;
+
+function enqueuePlateWrite(fn) {
+  plateWriteQueueLen++;
+  plateWriteChain = plateWriteChain
+    .then(() => fn())
+    .catch((err) => {
+      lastPlateError = String((err && err.message) || err);
+      log('KRITIK', 'Plaka yazma zinciri hatası:', lastPlateError);
+    })
+    .finally(() => {
+      plateWriteQueueLen = Math.max(0, plateWriteQueueLen - 1);
+      lastPlateWriteAt = new Date().toISOString();
+    });
+  return plateWriteChain;
+}
+
+function appendPlateLogLine(plate) {
+  fs.appendFileSync(PLATE_LOG_PATH, JSON.stringify(plate) + '\n', 'utf8');
+}
+
+function toPlateExcelRow(p) {
+  return {
+    Plaka: p.plate || '',
+    Tür: p.type || p.tur || 'Kurye',
+    'Ad Soyad': p.name || '',
+    Firma: p.company || '',
+    Telefon: p.phone || '',
+    Not: p.note || '',
+    'Son Görülme': p.ts ? trDate(p.ts) + ' ' + trTime(p.ts) : '',
+    'Görülme Sayısı': typeof p.seen === 'number' ? p.seen : 0,
+  };
+}
+
+function rebuildPlateExcelFromLog() {
+  const { rows, corrupt } = readAllPlateRecords();
+  if (corrupt > 0) log('ERROR', `Plaka log'da ${corrupt} bozuk satır atlandı (dosya korunuyor).`);
+
+  // Silinmiş plakalar Excel'e girmez
+  const live = rows.filter((p) => p && p.deleted !== true);
+  // Alfabetik sırala (plakaya göre)
+  live.sort((a, b) => (a.plate || '').localeCompare(b.plate || ''));
+
+  const sheetRows = live.map(toPlateExcelRow);
+  const ws = XLSX.utils.json_to_sheet(sheetRows, {
+    header: ['Plaka', 'Tür', 'Ad Soyad', 'Firma', 'Telefon', 'Not', 'Son Görülme', 'Görülme Sayısı'],
+  });
+  ws['!cols'] = [
+    { wch: 12 }, { wch: 11 }, { wch: 18 }, { wch: 18 },
+    { wch: 14 }, { wch: 25 }, { wch: 18 }, { wch: 10 },
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Plakalar');
+
+  // Atomik yazma
+  const tmpPath = PLATE_EXCEL_PATH + '.tmp';
+  XLSX.writeFile(wb, tmpPath, { bookType: 'xlsx' });
+  fs.renameSync(tmpPath, PLATE_EXCEL_PATH);
+}
+
+function maybePlateBackup() {
+  try {
+    if (seenPlateIds.size > 0 && seenPlateIds.size % 500 === 0) {
+      const dst = path.join(BACKUP_DIR, `plakalar-${new Date().toISOString().slice(0, 10)}-${seenPlateIds.size}.jsonl`);
+      if (!fs.existsSync(dst)) fs.copyFileSync(PLATE_LOG_PATH, dst);
+    }
+  } catch {}
+}
+
+function doPlateAppendSync(sanitized) {
+  appendPlateLogLine(sanitized);     // 1) önce log
+  seenPlateIds.add(sanitized.id);    // 2) dedup
+  persistSeenPlateIds();              // 3) dedup kalıcı
+  rebuildPlateExcelFromLog();         // 4) excel türet
+  maybePlateBackup();
+}
+
+function replacePlateLogLine(id, plate) {
+  const raw = fs.readFileSync(PLATE_LOG_PATH, 'utf8').split('\n');
+  let found = false;
+  for (let i = 0; i < raw.length; i++) {
+    const t = raw[i].trim();
+    if (!t) continue;
+    try {
+      if (JSON.parse(t).id === id) {
+        raw[i] = JSON.stringify(plate);
+        found = true;
+        break;
+      }
+    } catch {}
+  }
+  if (!found) return false;
+  const tmp = PLATE_LOG_PATH + '.tmp';
+  fs.writeFileSync(tmp, raw.join('\n'), 'utf8');
+  fs.renameSync(tmp, PLATE_LOG_PATH);
+  return true;
 }
 
 /**
@@ -540,6 +1307,92 @@ function acceptBatch(records) {
   return { saved, duplicates, updated, errors };
 }
 
+/**
+ * Plaka kabul et (tek kayıt).
+ * @returns {'created'|'duplicate'|'updated'}
+ */
+function acceptPlateOne(raw) {
+  const err = validatePlate(raw);
+  if (err) {
+    const e = new Error(err);
+    e.statusCode = 400;
+    throw e;
+  }
+  const rec = sanitizePlate(raw);
+  if (seenPlateIds.has(rec.id)) {
+    // Aynı id: retry mi yoksa güncelleme mi?
+    if (rec.updatedAt > (plateIdUpdated.get(rec.id) || 0)) {
+      return enqueuePlateWrite(() => {
+        replacePlateLogLine(rec.id, rec);
+        plateIdUpdated.set(rec.id, rec.updatedAt);
+        rebuildPlateExcelFromLog();
+        plateUpdateCount++;
+        broadcast('plaka', { tip: 'guncel', plaka: rec, durum: olayDurumu() });
+      }).then(() => 'updated');
+    }
+    return Promise.resolve('duplicate');
+  }
+  return enqueuePlateWrite(() => {
+    doPlateAppendSync(rec);
+    plateIdUpdated.set(rec.id, rec.updatedAt);
+    broadcast('plaka', { tip: 'yeni', plaka: rec, durum: olayDurumu() });
+  }).then(() => 'created');
+}
+
+/**
+ * Toplu plaka kabul et.
+ * @returns {{saved:number, duplicates:number, updated:number, errors:Array}}
+ */
+function acceptPlateBatch(plates) {
+  let saved = 0, duplicates = 0, updated = 0;
+  const errors = [];
+  const fresh = [];
+  const updatedIds = [];
+  for (let i = 0; i < plates.length; i++) {
+    try {
+      const err = validatePlate(plates[i]);
+      if (err) {
+        const e = new Error(err);
+        e.statusCode = 400;
+        throw e;
+      }
+      const rec = sanitizePlate(plates[i]);
+      if (seenPlateIds.has(rec.id)) {
+        if (rec.updatedAt > (plateIdUpdated.get(rec.id) || 0)) {
+          replacePlateLogLine(rec.id, rec);
+          plateIdUpdated.set(rec.id, rec.updatedAt);
+          updatedIds.push(rec);
+          updated++;
+          plateUpdateCount++;
+        } else {
+          duplicates++;
+        }
+      } else {
+        seenPlateIds.add(rec.id);
+        plateIdUpdated.set(rec.id, rec.updatedAt);
+        fresh.push(rec);
+        saved++;
+      }
+    } catch (e) {
+      errors.push({ index: i, id: plates[i] && (plates[i].id || plates[i].uid), error: e.message });
+    }
+  }
+  if (fresh.length > 0) {
+    fs.appendFileSync(PLATE_LOG_PATH, fresh.map((r) => JSON.stringify(r)).join('\n') + '\n', 'utf8');
+    persistSeenPlateIds();
+  }
+  if (fresh.length > 0 || updated > 0) {
+    rebuildPlateExcelFromLog();
+    maybePlateBackup();
+    broadcast('plaka', {
+      tip: 'toplu',
+      plakalar: fresh.concat(updatedIds),
+      durum: olayDurumu(),
+    });
+  }
+  return { saved, duplicates, updated, errors };
+}
+
 function safeJson(res, code, obj) {
   try {
     if (!res.headersSent) res.status(code).json(obj);
@@ -569,6 +1422,7 @@ function broadcast(event, data) {
 function olayDurumu() {
   return {
     kayitSayisi: seenIds.size,
+    plakaSayisi: seenPlateIds.size,
     guncelleme: updateCount,
     excelBytes: safeSize(EXCEL_PATH),
     logBytes: safeSize(LOG_PATH),
@@ -749,9 +1603,11 @@ function yerelMi(req) {
 function requireYerelPanel(req, res, next) {
   if (yerelMi(req)) return next();
   if (PANEL_UZAK) return next();
+  // TELEFON UYGULAMASI GEREKSİZ ENGELLENMEMELI
+  // Panel dosyaları korunuyor ama telefon uygulaması /telefon/* açık olmalı
   return res.status(403).json({
     ok: false,
-    error: 'Panel yalnızca bu bilgisayardan açılabilir. Aynı Wi-Fi ağındaki diğer cihazlardan kapatıldı.',
+    error: 'Panel yalnızca bu bilgisayardan açılabilir. Aynı Wi-Fi ağındaki diğer cihazlardan kapatıldı. TELEFON İÇİN: http://' + (tls.birincilLanIp ? tls.birincilLanIp() : 'BILGISAYAR-IP') + ':' + PORT + '/telefon/',
     panelUzak: false,
   });
 }
@@ -797,14 +1653,53 @@ function eslesmeKaydet() {
 eslesmeYukle();
 
 /**
- * Bu istemgi kurabilir mi? (a) liste bosken -> ilk gelen kaydolur
- *                        (b) IP veya kalici kimlik biliniyorsa -> evet
- *                        (c) aksi -> onay bekler, anahtar VERILMEZ
+ * Bu istemgi kurabilir mi? 
+ * 
+ * SELF-HEALING KURAL:
+ *   (a) liste bosken -> İLK GELEN CİHAZ OTOMATİK KABUL
+ *   (b) BU BİLGİSAYARIN KENDİSİ (localhost veya yerel IP) -> OTOMATİK KABUL
+ *   (c) IP veya kalici kimlik biliniyorsa -> KABUL
+ *   (d) aksi -> onay bekler, anahtar VERİLMEZ (yönetici onaylayacak)
+ * 
+ * ÖNEMLİ: İlk cihaz garantili kabul - kurulum SIFIR DOKUNUŞLA çalışır
+ * ÖLÇÜLEN HATA DÜZELTMESİ: Bilgisayarın 127.0.0.1 onaylandı ama 192.168.1.x
+ * IP'si onay bekliyordu. Panel bu bilgisayarda çalışıyor, telefonlar da
+ * bu bilgisayara bağlanıyor — aynı makinenin tüm IP'leri otomatik kabul.
  */
 function eslesmeKontrol(ip, kimlik) {
-  if (!eslesmeDurumu.cihazlar.length) return { izin: true, ilk: true };
+  // LOCALHOST HER ZAMAN KABUL (panel bu bilgisayarda açılır)
+  if (ip === '127.0.0.1' || ip === '::1' || ip === 'localhost') {
+    log('INFO', `Localhost kabul: ${ip}`);
+    return { izin: true, ilk: false };
+  }
+  
+  // BU BİLGİSAYARIN AĞDAKİ IP'LERİ OTOMATİK KABUL
+  // Ölçülen senaryo: sunucu 192.168.1.129'da çalışıyor; telefon QR okutup
+  // aynı IP'ye bağlanıyor. Bu aynı makine, onay gereksiz.
+  const yerelIPler = Object.values(os.networkInterfaces())
+    .flat()
+    .filter(i => i && i.family === 'IPv4' && !i.internal)
+    .map(i => i.address);
+  
+  if (yerelIPler.includes(ip)) {
+    log('INFO', `Yerel IP kabul: ${ip}`);
+    return { izin: true, ilk: false };
+  }
+  
+  // Liste boşsa -> İLK GELEN CİHAZ OTOMATİK KABUL
+  if (!eslesmeDurumu.cihazlar.length) {
+    log('INFO', `İlk cihaz kabul: ${ip}`);
+    return { izin: true, ilk: true };
+  }
+  
+  // IP veya kimlik biliniyorsa -> KABUL
   const bilinen = eslesmeDurumu.cihazlar.some((c) => (ip && c.ip === ip) || (kimlik && c.kimlik === kimlik));
-  if (bilinen) return { izin: true, ilk: false };
+  if (bilinen) {
+    log('INFO', `Bilinen cihaz: ${ip}`);
+    return { izin: true, ilk: false };
+  }
+  
+  log('INFO', `Yeni cihaz onay bekliyor: ${ip}`);
   return { izin: false, ilk: false };
 }
 
@@ -898,7 +1793,346 @@ function requireAnyKey(req, res, next) {
 }
 
 app.get('/saglik', (req, res) => {
-  res.json({ ok: true, kayitSayisi: seenIds.size, zaman: new Date().toISOString() });
+  res.json({ ok: true, kayitSayisi: seenIds.size, plakaSayisi: seenPlateIds.size, zaman: new Date().toISOString() });
+});
+
+// ---------------------------------------------------------------------------
+// PLAKA API ENDPOINT'LERİ
+// ---------------------------------------------------------------------------
+
+// POST /plaka - Tek plaka kaydet/güncelle
+app.post('/plaka', requireToken, async (req, res) => {
+  try {
+    const result = await acceptPlateOne(req.body);
+    const sanitized = sanitizePlate(req.body);
+    res.json({ ok: true, result, plate: sanitized });
+  } catch (e) {
+    const code = e.statusCode || 500;
+    res.status(code).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /plaka/batch - Toplu plaka kaydet
+app.post('/plaka/batch', requireToken, async (req, res) => {
+  try {
+    const plates = req.body.plates || [];
+    if (!Array.isArray(plates)) {
+      return res.status(400).json({ ok: false, error: 'plates dizisi bekleniyor' });
+    }
+    const result = acceptPlateBatch(plates);
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /plaka/:plate - Plaka bilgisi sorgula
+app.get('/plaka/:plate', requireToken, (req, res) => {
+  try {
+    const plateStr = decodeURIComponent(req.params.plate).toUpperCase().trim();
+    const key = plateKey(plateStr);
+    const { rows } = readAllPlateRecords();
+    const found = rows.find(p => p && !p.deleted && (plateKey(p.plate) === key || p.plate === plateStr));
+    if (found) {
+      res.json({ ok: true, plate: found });
+    } else {
+      res.json({ ok: false, error: 'Plaka bulunamadı' });
+    }
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /plakalar - Tüm plakalar (web panel için)
+app.get('/plakalar', requireYerelPanel, (req, res) => {
+  try {
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+    const q = (req.query.q || '').trim().toLocaleLowerCase('tr-TR');
+    const typeFilter = (req.query.type || '').trim();
+    
+    let { rows } = readAllPlateRecords();
+    
+    // Silinmişleri filtrele
+    rows = rows.filter(p => p && !p.deleted);
+    
+    // Arama
+    if (q) {
+      rows = rows.filter(p =>
+        [p.plate, p.name, p.company, p.type, p.note, p.phone]
+          .map(v => String(v || '').toLocaleLowerCase('tr-TR'))
+          .some(v => v.includes(q))
+      );
+    }
+    
+    // Tür filtresi
+    if (typeFilter) {
+      rows = rows.filter(p => (p.type || 'Kurye') === typeFilter);
+    }
+    
+    const total = rows.length;
+    const paged = rows.slice(offset, offset + limit);
+    
+    res.json({ ok: true, total, records: paged });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// PUT /plaka/:id - Plaka güncelle (web panel)
+app.put('/plaka/:id', requireYerelPanel, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updates = req.body;
+    
+    // Mevcut kaydı bul
+    const { rows } = readAllPlateRecords();
+    const existing = rows.find(p => p && p.id === id);
+    
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Plaka bulunamadı' });
+    }
+    
+    // Güncelleme: mevcut + yeni
+    const updated = Object.assign({}, existing, updates, {
+      id: existing.id, // id değiştirilemez
+      updatedAt: Date.now(),
+    });
+    
+    const result = await acceptPlateOne(updated);
+    res.json({ ok: true, result, plate: sanitizePlate(updated) });
+  } catch (e) {
+    const code = e.statusCode || 500;
+    res.status(code).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /plaka/:id - Plaka sil (soft delete)
+app.delete('/plaka/:id', requireYerelPanel, async (req, res) => {
+  try {
+    const id = req.params.id;
+    
+    // Mevcut kaydı bul
+    const { rows } = readAllPlateRecords();
+    const existing = rows.find(p => p && p.id === id);
+    
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Plaka bulunamadı' });
+    }
+    
+    // Soft delete
+    const deleted = Object.assign({}, existing, {
+      deleted: true,
+      updatedAt: Date.now(),
+    });
+    
+    const result = await acceptPlateOne(deleted);
+    res.json({ ok: true, result });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /kayit/:id - Kayıt sil (soft delete)
+app.delete('/kayit/:id', requireYerelPanel, (req, res) => {
+  try {
+    const id = req.params.id;
+    log('info', `[DELETE /kayit] İstek alındı, id: ${id}`);
+    
+    // Mevcut kaydı bul
+    const { rows } = readAllLogRecords();
+    log('info', `[DELETE /kayit] Toplam ${rows.length} kayıt okundu`);
+    
+    const existing = rows.find(r => r && (r.id === id || r.uid === id));
+    
+    if (!existing) {
+      log('warn', `[DELETE /kayit] Kayıt bulunamadı: ${id}`);
+      return res.status(404).json({ ok: false, error: 'Kayıt bulunamadı' });
+    }
+    
+    log('info', `[DELETE /kayit] Mevcut kayıt bulundu:`, existing);
+    
+    // Soft delete - deleted flag ekle
+    const deleted = Object.assign({}, existing, {
+      deleted: true,
+      updatedAt: Date.now(),
+    });
+    
+    log('info', `[DELETE /kayit] Silinen kayıt (deleted=true):`, deleted);
+    
+    // acceptOne zaten senkron, async'e gerek yok
+    const result = acceptOne(deleted);
+    log('info', `[DELETE /kayit] acceptOne sonucu: ${result}`);
+    
+    // Kontrol: gerçekten silindi mi?
+    const { rows: afterRows } = readAllLogRecords();
+    const afterRecord = afterRows.find(r => r && (r.id === id || r.uid === id));
+    log('info', `[DELETE /kayit] Silme sonrası kontrol:`, afterRecord);
+    
+    res.json({ ok: true, result: 'deleted' });
+  } catch (e) {
+    log('error', `[DELETE /kayit] Hata: ${e.message}`, e.stack);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ==================== SİTE/BLOK API ====================
+
+// POST /expand-url - Kısa URL'leri genişlet (Google Maps short links için)
+app.post('/expand-url', requireYerelPanel, async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ ok: false, error: 'URL gerekli' });
+    }
+    
+    // Google Maps short link kontrolü
+    if (!url.includes('goo.gl') && !url.includes('maps.app')) {
+      return res.json({ ok: true, expandedUrl: url }); // Zaten tam URL
+    }
+    
+    // HTTP redirect takibi ile URL expand et
+    const https = require('https');
+    const http = require('http');
+    
+    const followRedirects = (urlStr, maxRedirects = 5) => {
+      return new Promise((resolve, reject) => {
+        if (maxRedirects === 0) {
+          return reject(new Error('Çok fazla yönlendirme'));
+        }
+        
+        const client = urlStr.startsWith('https') ? https : http;
+        const req = client.get(urlStr, { timeout: 5000 }, (response) => {
+          if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+            // Redirect varsa takip et
+            let nextUrl = response.headers.location;
+            if (!nextUrl.startsWith('http')) {
+              const urlObj = new URL(urlStr);
+              nextUrl = urlObj.protocol + '//' + urlObj.host + nextUrl;
+            }
+            resolve(followRedirects(nextUrl, maxRedirects - 1));
+          } else {
+            resolve(urlStr);
+          }
+        });
+        
+        req.on('error', reject);
+        req.on('timeout', () => {
+          req.destroy();
+          reject(new Error('Timeout'));
+        });
+      });
+    };
+    
+    const expandedUrl = await followRedirects(url);
+    log('info', `[POST /expand-url] ${url} -> ${expandedUrl}`);
+    
+    res.json({ ok: true, expandedUrl });
+  } catch (e) {
+    log('error', `[POST /expand-url] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// GET /siteler - Tüm siteleri listele
+app.get('/siteler', requireToken, (req, res) => {
+  try {
+    const { rows } = readAllSiteRecords();
+    log('info', `[GET /siteler] Toplam ${rows.length} site`);
+    
+    // Deleted siteleri filtrele
+    const live = rows.filter(s => s && s.deleted !== true);
+    log('info', `[GET /siteler] Aktif site: ${live.length}`);
+    
+    // Alfabetik sırala
+    live.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    
+    res.json({
+      ok: true,
+      total: live.length,
+      sites: live
+    });
+  } catch (e) {
+    log('error', `[GET /siteler] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// POST /site - Yeni site ekle veya güncelle
+app.post('/site', requireYerelPanel, async (req, res) => {
+  try {
+    const site = req.body;
+    log('info', `[POST /site] İstek alındı:`, site);
+    
+    const result = await acceptSiteOne(site);
+    log('info', `[POST /site] Sonuç: ${result}`);
+    
+    res.json({ ok: true, result });
+  } catch (e) {
+    log('error', `[POST /site] Hata: ${e.message}`);
+    res.status(e.statusCode || 500).json({ ok: false, error: e.message });
+  }
+});
+
+// PUT /site/:id - Site güncelle
+app.put('/site/:id', requireYerelPanel, async (req, res) => {
+  try {
+    const id = req.params.id;
+    const updates = req.body;
+    log('info', `[PUT /site/${id}] Güncelleme:`, updates);
+    
+    // Mevcut siteyi bul
+    const { rows } = readAllSiteRecords();
+    const existing = rows.find(s => s && s.id === id);
+    
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Site bulunamadı' });
+    }
+    
+    // Güncelleme yap
+    const updated = Object.assign({}, existing, updates, {
+      id: existing.id, // ID değiştirilemez
+      updatedAt: Date.now()
+    });
+    
+    const result = await acceptSiteOne(updated);
+    log('info', `[PUT /site/${id}] Sonuç: ${result}`);
+    
+    res.json({ ok: true, result });
+  } catch (e) {
+    log('error', `[PUT /site/${id}] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// DELETE /site/:id - Site sil (soft delete)
+app.delete('/site/:id', requireYerelPanel, async (req, res) => {
+  try {
+    const id = req.params.id;
+    log('info', `[DELETE /site/${id}] İstek alındı`);
+    
+    // Mevcut siteyi bul
+    const { rows } = readAllSiteRecords();
+    const existing = rows.find(s => s && s.id === id);
+    
+    if (!existing) {
+      return res.status(404).json({ ok: false, error: 'Site bulunamadı' });
+    }
+    
+    // Soft delete
+    const deleted = Object.assign({}, existing, {
+      deleted: true,
+      updatedAt: Date.now()
+    });
+    
+    const result = await acceptSiteOne(deleted);
+    log('info', `[DELETE /site/${id}] Sonuç: ${result}`);
+    
+    res.json({ ok: true, result: 'deleted' });
+  } catch (e) {
+    log('error', `[DELETE /site/${id}] Hata: ${e.message}`);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 function lanAdresleri() {
@@ -916,15 +2150,23 @@ function lanAdresleri() {
 app.get('/durum', requireToken, (req, res) => {
   res.json(Object.assign({ ok: true }, olayDurumu(), {
     kuyruk: writeQueueLen,
-    // ÖLÇÜLEN KARAR: kamera için sertifika GEREKMEZ. Telefonun kendi
-    // kamerası (capture="environment") düz http üzerinde de çalışır.
     adresler: adaySirasi().httpAdresler,
-    // https yalnızca isteğe bağlı canlı önizleme içindir; zorunlu değil.
     https: Object.assign(tls.durumBilgisi(), { port: HTTPS_PORT }),
     uptimeSn: Math.round(process.uptime()),
     surum: SUREM,
-    // Ağ güvenliği yapılandırması — panelde gösterilir ki kullanıcı
-    // hangi değeri nereye yazacağını bilsin (sessiz kural yok).
+    // Excel sistemi
+    excel: {
+      mode: EXCEL_MODE, // 'single', 'daily', 'shift'
+      modeLabel: EXCEL_MODE === 'daily' ? 'Günlük Excel' : EXCEL_MODE === 'shift' ? 'Vardiya Excel' : 'Tek Excel',
+      shifts: SHIFTS,
+      currentShift: EXCEL_MODE === 'shift' ? getCurrentShift() : null,
+      files: getAllExcelPaths().map(f => ({ 
+        name: f.name, 
+        path: path.basename(f.path),
+        type: f.type 
+      }))
+    },
+    // Ağ güvenliği yapılandırması
     agGuvenligi: {
       anahtarKaynak: ANAHTAR_KAYNAK,
       anahtarVar: !!API_ANAHTARI,
@@ -943,6 +2185,66 @@ app.get('/durum', requireToken, (req, res) => {
       }
       : { aktif: false, sebep: plakaMotoruHatasi },
   }));
+});
+
+// POST /excel-ayar - Excel modu ve ayarlarını güncelle
+app.post('/excel-ayar', requireYerelPanel, (req, res) => {
+  try {
+    const { mode, shifts } = req.body;
+    
+    // Mod kontrolü
+    if (!['single', 'daily', 'shift'].includes(mode)) {
+      return res.status(400).json({ ok: false, error: 'Geçersiz mod: single, daily veya shift olmalı' });
+    }
+    
+    // Shift modu ise vardiya tanımı zorunlu
+    if (mode === 'shift' && (!Array.isArray(shifts) || shifts.length === 0)) {
+      return res.status(400).json({ ok: false, error: 'Vardiya modu aktifken en az 1 vardiya tanımlanmalı' });
+    }
+    
+    if (shifts && mode === 'shift') {
+      for (const shift of shifts) {
+        if (!shift.name || !shift.start || !shift.end) {
+          return res.status(400).json({ ok: false, error: 'Her vardiya name, start, end içermeli' });
+        }
+        // Saat formatı kontrolü (HH:MM)
+        if (!/^\d{2}:\d{2}$/.test(shift.start) || !/^\d{2}:\d{2}$/.test(shift.end)) {
+          return res.status(400).json({ ok: false, error: 'Saat formatı HH:MM olmalı (örn: 08:00)' });
+        }
+      }
+    }
+    
+    // Config.json'u oku
+    const configPath = path.join(__dirname, 'config.json');
+    let config = {};
+    try {
+      config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    } catch {}
+    
+    // Excel ayarlarını güncelle
+    config.excelMode = mode;
+    config.shifts = (mode === 'shift' && shifts) ? shifts : [];
+    
+    // Eski vardiya sistemini temizle (geriye dönük uyumluluk)
+    delete config.shiftEnabled;
+    
+    // Atomik yazma
+    const tmpPath = configPath + '.tmp';
+    fs.writeFileSync(tmpPath, JSON.stringify(config, null, 2), 'utf8');
+    fs.renameSync(tmpPath, configPath);
+    
+    const modeLabel = mode === 'daily' ? 'Günlük Excel' : mode === 'shift' ? 'Vardiya Excel' : 'Tek Excel';
+    log('INFO', `Excel modu güncellendi: ${modeLabel}${mode === 'shift' ? `, ${shifts.length} vardiya` : ''}`);
+    
+    res.json({ 
+      ok: true, 
+      message: `${modeLabel} modu ayarlandı. Değişikliklerin etkili olması için sunucuyu yeniden başlatın.`,
+      requiresRestart: true
+    });
+  } catch (e) {
+    log('ERROR', 'Excel ayar hatası:', e.message);
+    res.status(500).json({ ok: false, error: e.message });
+  }
 });
 
 // Gerçek zamanlı olay akışı (SSE). Panel bu kanalı dinler; yoksa 15 sn'de bir
@@ -976,15 +2278,26 @@ app.get('/kayitlar', requireToken, (req, res) => {
   const offset = Math.max(parseInt(req.query.offset || '0', 10) || 0, 0);
   const q = String(req.query.q || '').toLocaleLowerCase('tr-TR').trim();
   const { rows } = readAllLogRecords();
-  rows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
-  let filtered = rows;
+  
+  log('info', `[GET /kayitlar] Toplam kayıt: ${rows.length}`);
+  
+  // Deleted kayıtları filtrele - varsayılan olarak gösterme
+  const liveRows = rows.filter(r => r && r.deleted !== true);
+  
+  log('info', `[GET /kayitlar] Silinmemiş kayıt: ${liveRows.length}, Silinen: ${rows.length - liveRows.length}`);
+  
+  liveRows.sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  let filtered = liveRows;
   if (q) {
-    filtered = rows.filter((r) =>
-      [r.site, r.unit, r.courier, r.company, r.plate, r.guard, r.note, r.date, r.time]
+    filtered = liveRows.filter((r) =>
+      [r.site, r.unit, r.courier, r.company, r.plate, r.guard, r.note, r.type, r.date, r.time]
         .map((v) => String(v || '').toLocaleLowerCase('tr-TR'))
         .some((v) => v.includes(q))
     );
   }
+  
+  log('info', `[GET /kayitlar] Filtrelenmiş: ${filtered.length}, limit: ${limit}, offset: ${offset}`);
+  
   res.json({
     ok: true,
     total: filtered.length,
@@ -1109,11 +2422,15 @@ app.get('/eslesme', (req, res) => {
   // aynı telefon tanınır (DHCP yenilemesi yüzünden gerekli).
   const _kimlik = String(req.headers['x-sync-cihaz'] || req.query.cihaz || '').slice(0, 64) || null;
   const izin = eslesmeKontrol(_ip, _kimlik);
+  
+  // DÜZELTME: İlk cihaz veya bilinen cihazsa kaydet VE token ver
+  // Onay bekleyen cihazlar için de bilgi döndür ama token verme
   if (izin.izin) {
     eslesmeKaydetCihaz(_ip, _kimlik);
+    log('INFO', `Cihaz eşleşti: ${_ip}`);
   } else {
     eslesmeOnayBekle(_ip, _kimlik);
-    log('UYARI', 'Eşleşme reddedildi — onay bekleyen cihaz:', _ip);
+    log('INFO', `Cihaz onay bekliyor: ${_ip}`);
   }
 
   const { adaylar, bilgisayarAdi } = adayAdresler();
@@ -1158,15 +2475,19 @@ app.get('/eslesme', (req, res) => {
     // QR içinde ne kodlandığı AÇIKÇA bildirilir. Ölçülebilirlik ilkesi:
     // "ne gönderiliyor" tahmin edilmemeli, sunucu söylemeli. Bu alan
     // testlerin ve panelin aynı değeri okumasını sağlar.
-    // ÖLÇÜLEN HATA (kullanıcı: "adres bulundu ama anahtar alınamadı"):
-    // QR yalnızca adresi taşıyordu; telefon anahtarı `/eslesme` çağrısıyla
-    // almaya çalışıyordu. GitHub'dan açıldığında sayfa https, sunucu http
-    // olduğu için tarayıcı İSTEĞİ HİÇ GÖNDERMEDEN engelliyordu
-    // (karşılaştırmalı içerik). Anahtarı QR'ın içine koyuyoruz: eşleşme
-    // için ağ isteği gerekmiyor.
     qrAdres: kalici,
-    // Anahtarlı QR içeriği — telefon bu formattan adres + anahtarı alır.
-    qrTam: SHARED_TOKEN ? (kalici + '#token=' + SHARED_TOKEN) : kalici,
+    
+    // İKİ AŞAMALI QR SİSTEMİ:
+    // 1) İlk QR: Sadece telefon uygulaması adresi (token YOK)
+    //    Kullanıcı bunu okutup sayfayı açar
+    // 2) İkinci QR: Token'lı tam adres (senkron için)
+    //    Telefonda "Senkron" butonuna basınca bu QR'ı okutacak
+    
+    // İlk QR - Sadece uygulama adresi
+    qrIlk: kalici + '/telefon/',
+    
+    // İkinci QR - Token'lı tam adres (senkron için)
+    qrTam: SHARED_TOKEN ? (kalici + '/telefon/#token=' + SHARED_TOKEN) : (kalici + '/telefon/'),
     // Kök CA: indirme adresi + QR'ı. Panel bunları gösterir.
     kokCaAdres,
     qrKokSvg: qrKok.qrSvg,
@@ -1185,7 +2506,19 @@ app.get('/eslesme', (req, res) => {
     //   -> yönetici yalnızca cihaz değişiminde panelden tek tıkla onaylar
     token: izin.izin ? SHARED_TOKEN : null,
     onayBekliyor: !izin.izin,
+    ilkCihaz: izin.ilk === true,
     cihazSayisi: eslesmeDurumu.cihazlar.length,
+    // Eşleşme durumu - telefona yardımcı mesajlar için
+    eslesme: {
+      izinVerildi: izin.izin,
+      ilkCihaz: izin.ilk === true,
+      onayBekliyor: !izin.izin,
+      ip: _ip,
+      kimlik: _kimlik,
+      mesaj: izin.izin 
+        ? (izin.ilk ? 'İlk cihaz otomatik kabul edildi' : 'Cihaz kayıtlı')
+        : 'Yeni cihaz - yönetici onayı bekleniyor. Panelden onaylayın.'
+    },
     // QR içeriği: DÜZ ADRES, JSON sarmal değil.
     //
     // ÖLÇÜLEN HATA: burada `{"u":...,"t":...}` JSON'u vardı ve 64
@@ -1200,11 +2533,11 @@ app.get('/eslesme', (req, res) => {
     // Düz adres hem kısa (sınırın içinde) hem de telefonun kendi
     // kamerasıyla okutulup UYGULAMAYI AÇAR. Yani işe yarar.
     // Anahtar zaten panelde ayrı bir alanda ve /eslesme'de gelir.
-    // QR görseli de anahtarlı içerikten üretilir (yoksa telefon eski koddan
-    // anahtarsız adresi okurdu). ÖLÇÜLEN HATA: ilk denemede yalnızca
-    // `qrAdres` alanına anahtar kondu, görsel `qrAl(kalici)` ile üretildiği
-    // için ikisi tutarsızdı.
-    ...qrAl(SHARED_TOKEN ? (kalici + '#token=' + SHARED_TOKEN) : kalici),
+    // QR görselleri:
+    // 1) İlk QR - Token YOK (sadece uygulama adresi)
+    ...qrAl(kalici + '/telefon/'),
+    // 2) İkinci QR - Token VAR (senkron için)
+    qrSvgToken: qrAl(SHARED_TOKEN ? (kalici + '/telefon/#token=' + SHARED_TOKEN) : (kalici + '/telefon/')).qrSvg,
     zaman: new Date().toISOString(),
   });
 });
@@ -1314,13 +2647,32 @@ app.get('/kurulum/kok.cer', (req, res) => {
 // DİKKAT: bu genel bir engel DEĞİL. Yalnizca panel dosyalari korunur;
 // telefonun kullandigi /telefon/*, /eslesme, /plaka/oku ve yazma uclari
 // acik kalir (zaten anahtar isterler).
-const PANEL_DOSYALAR = /^\/(kayitlar\.html|ayar\.html|eslesme\.html)$/;
+const PANEL_DOSYALAR = /^\/(kayitlar\.html|ayar\.html|eslesme\.html|cihazlar\.html)$/;
 app.get(['/', '/index.html'], requireYerelPanel, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 app.get(PANEL_DOSYALAR, requireYerelPanel, (req, res) => {
   res.sendFile(path.join(__dirname, 'public', path.basename(req.path)));
 });
 app.get('/assets/*', requireYerelPanel, (req, res) => {
   const dosya = path.join(__dirname, 'public', 'assets', path.basename(req.path));
+  if (!fs.existsSync(dosya)) return res.status(404).json({ ok: false, error: 'Bulunamadı' });
+  res.sendFile(dosya);
+});
+
+// TELEFON UYGULAMASI - KORUMASIZ (telefon erişebilmeli)
+// Bu route'lar requireYerelPanel kullanMAMALI çünkü telefonlar LAN'dan bağlanır
+app.get(['/telefon/', '/telefon/index.html'], (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'telefon', 'index.html'));
+});
+
+app.get('/telefon/vendor/*', (req, res) => {
+  const dosya = path.join(__dirname, 'public', 'telefon', 'vendor', path.basename(req.path));
+  if (!fs.existsSync(dosya)) return res.status(404).json({ ok: false, error: 'Bulunamadı' });
+  res.sendFile(dosya);
+});
+
+// Telefon uygulaması JS dosyaları
+app.get('/telefon/*.js', (req, res) => {
+  const dosya = path.join(__dirname, 'public', 'telefon', path.basename(req.path));
   if (!fs.existsSync(dosya)) return res.status(404).json({ ok: false, error: 'Bulunamadı' });
   res.sendFile(dosya);
 });
@@ -1352,8 +2704,14 @@ app.get('/assets/*', requireYerelPanel, (req, res) => {
 // gönderir, motor bu listeye yakın okumaları öne çıkarır. Nöbetçinin sık
 // gelen kuryeleri için doğruluk belirgin şekilde artar.
 app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
+  const baslangicZamani = Date.now();
+  const istekIp = istemciIp(req);
+  
+  // Plaka okuma başlatıldı (verbose loglar kaldırıldı)
+  
   // Motor kurulamadıysa servis ÇÖKMEMELİ: nöbetçi elle plaka yazabilir.
   if (!plakaMotoru) {
+    log('ERROR', 'Plaka motoru kullanılamıyor');
     return res.status(503).json({
       ok: false,
       basarili: false,
@@ -1361,27 +2719,19 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
       sebep: plakaMotoruHatasi,
     });
   }
+  
   const govde = req.body || {};
   const hamGorsel = govde.gorsel || govde.image || govde.imageBase64;
+  
   if (!hamGorsel || typeof hamGorsel !== 'string') {
+    log('ERROR', 'Görsel alanı eksik');
     return res.status(400).json({ ok: false, error: 'gorsel alanı gerekli (base64 PNG/JPEG)' });
   }
+  
   const bilinen = Array.isArray(govde.bilinenPlakalar) ? govde.bilinenPlakalar.slice(0, 400) : [];
   const hizli = !!govde.hizli;
 
-  // KIRPMA İPUCU — kullanıcının ekranda çizdiği dikdörtgen (yüzde).
-  //
-  // Neden var? Kullanıcının gerçek telefonundan gelen tanı: bölge bulucu
-  // 8 aday buluyor, hiçbiri plaka değil ("TR | TR | TR" = mavi TR şeridi).
-  // Kullanıcı plakanın etrafına dikdörtgen çiziyordu; bu bilgi motora
-  // ULAŞMIYORDU. Ölçüm: 180 senaryonun 19'unda ipucu belirleyici oldu.
-  //
-  // Yüzde olarak gelir çünkü telefonun dikdörtgeni de yüzde tutuyor ve
-  // kare boyutu cihazdan cihaza değişir; sunucu kendi çözünürlüğüne çevirir.
-  //
-  // DİKKAT: Sınırlamasız istemci verisi motoru bozmamalı. Yalnızca sonlu
-  // sayı ve makul aralıktaki değerler kabul edilir; gerisi null olur ve
-  // motor normal yoluna düşer. (Bozuk ipucu testleri bunu doğruluyor.)
+  // KIRPMA İPUCU
   const sayi = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : Number(v));
   let ipucu = null;
   if (govde.ipucu && typeof govde.ipucu === 'object' && !Array.isArray(govde.ipucu)) {
@@ -1393,50 +2743,78 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
     }
   }
 
-  // data:image/png;base64, önekini soy
   const base64 = hamGorsel.replace(/^data:image\/[a-z+]+;base64,/i, '');
+  
   if (!base64 || base64.length < 32) {
     return res.status(400).json({ ok: false, error: 'görüntü verisi çok kısa' });
   }
+  
   let tampon;
   try {
     tampon = Buffer.from(base64, 'base64');
-  } catch {
+  } catch (e) {
+    log('ERROR', 'Base64 decode hatası:', e.message);
     return res.status(400).json({ ok: false, error: 'görüntü base64 çözülemedi' });
   }
+  
   if (tampon.length < 64) {
     return res.status(400).json({ ok: false, error: 'görüntü boş veya bozuk' });
   }
 
-  // ------------------------------------------------------------------
-  //  YOLO HIZLI YOLU (olculerek 5/5 dogru, 152-389 ms)
-  // ------------------------------------------------------------------
-  // Kullanici plakanin uzerine DIKDORTGEN CIZMISSE ipucu vardir. Insan
-  // isareti bu modelden guvenilirdir ve mevcut yol onu zaten kullanir;
-  // bu durumda YOLO denemek gereksiz sure ve komşuluk demektir.
-  let hizliYol = null;
+  // Çok büyük görsel uyarısı
+  if (tampon.length > 2 * 1024 * 1024) {
+    log('WARN', 'Görsel çok büyük:', (tampon.length / 1024 / 1024).toFixed(2) + ' MB');
+  }
+
+  // Karanlık kare kontrolü
+  const parlaklik = ortalamaParlaklik(tampon);
+  
+  if (parlaklik !== null && parlaklik < 45) {
+    return res.status(200).json({
+      ok: true,
+      basarili: false,
+      plaka: '',
+      guveniyet: 0,
+      guvenSeviyesi: 'kirmizi',
+      neden: 'karanlik',
+      parlaklik: Math.round(parlaklik),
+      mesaj: 'Kare çok karanlık — plaka bulunamadı. Aydınlatın, yaklaşın veya flaş kullanın.',
+      sureMs: Date.now() - baslangicZamani,
+    });
+  }
+
+  // YOLO hızlı yolu
   const baslangicH = Date.now();
-  if (!ipucu) {
-    try {
+  let hizliYol = null;
+  
+  try {
       const a = yoloPlaka.ac(tampon);
       const kutuListesi = a ? await yoloPlaka.kutular(tampon) : [];
+      
       if (a && kutuListesi.length) {
         for (const kirp of yoloPlaka.kirpmalar(kutuListesi)) {
           const kk = yoloPlaka.kirpKucult(a, kirp, yoloPlaka.VARSAYILAN_HEDEF_Y);
           if (!kk) continue;
+          
           let png = null;
           try {
             png = require('./ocr/gorsel.js').pngKodla(
               require('./ocr/gorsel.js').griyiRgba(kk.gri), kk.w, kk.h);
-          } catch (e) { png = null; }
+          } catch (e) { 
+            png = null; 
+          }
           if (!png) continue;
+          
           let r = null;
           try {
             r = await plakaMotoru.oku(png, {
               bilinenPlakalar: bilinen.map((x) => String(x)).filter(Boolean),
               hizli: hizli,
             });
-          } catch (e) { r = null; }
+          } catch (e) { 
+            r = null; 
+          }
+          
           if (r && r.basarili && r.plaka) {
             r.kaynak = 'yolo/kutu';
             r.yoloKutu = { guven: kirp.guven, sureMs: Date.now() - baslangicH };
@@ -1445,9 +2823,8 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
           }
         }
       }
-    } catch (e) {
-      hizliYol = null;   // sessizce eski hatta dusulur
-    }
+  } catch (e) {
+    hizliYol = null;
   }
 
   try {
@@ -1467,14 +2844,16 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
         sureMs: Date.now() - baslangicH,
       });
     }
-    // ÖLÇÜLEN KÖK NEDEN: tek deneme yetersiz kalıyor. Birden çok hazırlık
-  // denenir; ilk tutan döner. Kullanıcı görüntüyü 6 kez göndermez —
-  // hepsi sunucuda, tek istekte olur.
-  const sonuc = await cokluOku(plakaMotoru, tampon, {
+    const sonuc = await cokluOku(plakaMotoru, tampon, {
       bilinenPlakalar: bilinen.map((p) => String(p)).filter(Boolean),
       hizli,
       ipucu,
     });
+    
+    if (!sonuc.basarili) {
+      log('INFO', 'Plaka okunamadı:', sonuc.neden || 'bilinmiyor');
+    }
+    
     broadcast('plaka', { tip: 'plaka', plaka: sonuc.plaka || null });
     safeJson(res, 200, {
       ok: true,
@@ -1530,6 +2909,7 @@ app.post('/plaka/oku', plakaGovde, requireToken, async (req, res) => {
       ipucuAlindi: !!ipucu,
     });
   } catch (e) {
+    log('ERROR', 'Plaka okuma hatası:', e.message);
     safeJson(res, 500, { ok: false, error: 'okuma hatası: ' + e.message });
   }
 });
@@ -1583,15 +2963,28 @@ app.post('/kayit/batch', requireToken, (req, res) => {
 app.use((req, res) => res.status(404).json({ ok: false, error: 'Bulunamadı' }));
 
 // ---------------------------------------------------------------------------
-// 6. Açılış self-healing + graceful shutdown
+// 6. Açılış self-healing + graceful shutdown + Watchdog
 // ---------------------------------------------------------------------------
 
 loadSeenIds();
+loadSeenPlateIds();
+loadSeenSiteIds();
+
+// Seed: İlk kez çalışıyorsa mock siteleri yükle
+try {
+  const { seedSites } = require('./seed-sites-full.js');
+  seedSites();
+} catch (e) {
+  log('WARN', 'Site seed başarısız (normal olabilir):', e.message);
+}
 
 // Yarım kalmış atomik yazma artığı varsa temizle (elektrik kesintisi sonrası).
 // Gerçek .xlsx'e hiç dokunulmadığı için bu dosya güvenle silinir.
 (function cleanStaleTmp() {
-  for (const p of [EXCEL_PATH + '.tmp', DEDUPE_PATH + '.tmp', LOG_PATH + '.tmp']) {
+  for (const p of [
+    EXCEL_PATH + '.tmp', DEDUPE_PATH + '.tmp', LOG_PATH + '.tmp',
+    PLATE_EXCEL_PATH + '.tmp', PLATE_DEDUPE_PATH + '.tmp', PLATE_LOG_PATH + '.tmp'
+  ]) {
     try {
       if (fs.existsSync(p)) {
         fs.unlinkSync(p);
@@ -1627,18 +3020,141 @@ loadSeenIds();
   }
 })();
 
+// Plaka Excel'i yoksa/bozuksa log'dan yeniden üret.
+(function startupHealPlateExcel() {
+  let need = false;
+  try {
+    if (!fs.existsSync(PLATE_EXCEL_PATH)) need = true;
+    else {
+      const st = fs.statSync(PLATE_EXCEL_PATH);
+      if (st.size < 100) need = true;
+    }
+  } catch {
+    need = true;
+  }
+  if (need && seenPlateIds.size > 0) {
+    try {
+      rebuildPlateExcelFromLog();
+      log('INFO', 'Açılışta Plaka Excel log üzerinden yeniden üretildi.');
+    } catch (e) {
+      log('ERROR', 'Açılış Plaka Excel rebuild başarısız:', e.message);
+    }
+  } else if (need) {
+    log('INFO', 'Plaka kaydı yok, Excel ilk kayıtla oluşacak.');
+  }
+})();
+
+// Site Excel'i yoksa/bozuksa log'dan yeniden üret.
+(function startupHealSiteExcel() {
+  let need = false;
+  try {
+    if (!fs.existsSync(SITE_EXCEL_PATH)) need = true;
+    else {
+      const st = fs.statSync(SITE_EXCEL_PATH);
+      if (st.size < 100) need = true;
+    }
+  } catch {
+    need = true;
+  }
+  if (need && seenSiteIds.size > 0) {
+    try {
+      rebuildSiteExcelFromLog();
+      log('INFO', 'Açılışta Site Excel log üzerinden yeniden üretildi.');
+    } catch (e) {
+      log('ERROR', 'Açılış Site Excel rebuild başarısız:', e.message);
+    }
+  } else if (need) {
+    log('INFO', 'Site kaydı yok, Excel ilk kayıtla oluşacak.');
+  }
+})();
+
+// ==================== WATCHDOG - Otomatik İyileşme ====================
+// Periyodik sağlık kontrolü: dosya bütünlüğü, bellek sızıntısı tespiti
+let watchdogCount = 0;
+setInterval(() => {
+  watchdogCount++;
+  
+  // Her 5 dakikada Excel bütünlüğünü kontrol et
+  if (watchdogCount % 30 === 0 && seenIds.size > 0) {
+    try {
+      if (!fs.existsSync(EXCEL_PATH)) {
+        log('UYARI', 'Watchdog: Excel dosyası kayıp, yeniden oluşturuluyor...');
+        rebuildExcelFromLog();
+      } else {
+        const st = fs.statSync(EXCEL_PATH);
+        if (st.size < 100) {
+          log('UYARI', 'Watchdog: Excel bozuk (çok küçük), yeniden oluşturuluyor...');
+          rebuildExcelFromLog();
+        }
+      }
+    } catch (e) {
+      log('ERROR', 'Watchdog Excel kontrolü başarısız:', e.message);
+    }
+  }
+
+  // Her 10 dakikada dedup dosyasını kontrol et
+  if (watchdogCount % 60 === 0) {
+    try {
+      if (!fs.existsSync(DEDUPE_PATH) && seenIds.size > 0) {
+        log('UYARI', 'Watchdog: Dedup dosyası kayıp, yeniden oluşturuluyor...');
+        persistSeenIdsSync();
+      }
+      if (!fs.existsSync(PLATE_DEDUPE_PATH) && seenPlateIds.size > 0) {
+        log('UYARI', 'Watchdog: Plaka dedup dosyası kayıp, yeniden oluşturuluyor...');
+        persistSeenPlateIdsSync();
+      }
+    } catch (e) {
+      log('ERROR', 'Watchdog dedup kontrolü başarısız:', e.message);
+    }
+  }
+
+  // Bellek kullanımını logla (potential memory leak tespiti)
+  if (watchdogCount % 120 === 0) {
+    const mem = process.memoryUsage();
+    const heapMB = Math.round(mem.heapUsed / 1024 / 1024);
+    log('INFO', `Watchdog: Bellek=${heapMB}MB, Kayıt=${seenIds.size}, Kuyruk=${writeQueueLen}, Güncel=${updateCount}`);
+    
+    // Aşırı bellek kullanımı uyarısı (>500MB heap)
+    if (heapMB > 500) {
+      log('UYARI', `Watchdog: Yüksek bellek kullanımı tespit edildi: ${heapMB}MB`);
+    }
+  }
+}, 10000).unref(); // Her 10 saniyede kontrol
+
+// ==================== HATA YAKALAMA - Process Ölmesin ====================
+let criticalErrorCount = 0;
+const MAX_CRITICAL_ERRORS = 50;
+
 process.on('uncaughtException', (err) => {
+  criticalErrorCount++;
   lastError = String((err && err.stack) || err);
-  log('KRITIK', 'Yakalanmamış hata (process yaşatılıyor):', lastError);
+  log('KRITIK', `Yakalanmamış hata #${criticalErrorCount} (process yaşatılıyor):`, lastError);
+  
+  // Çok fazla kritik hata varsa servisi yeniden başlat
+  if (criticalErrorCount >= MAX_CRITICAL_ERRORS) {
+    log('KRITIK', 'Çok fazla hata! Servis yeniden başlatılmalı.');
+    // Graceful shutdown - launcher otomatik yeniden başlatacak
+    shutdown('TOO_MANY_ERRORS');
+  }
 });
+
 process.on('unhandledRejection', (reason) => {
   lastError = String((reason && reason.stack) || reason);
   log('KRITIK', 'İşlenmemiş promise reddi:', lastError);
 });
 
+// Her saat kritik hata sayacını azalt (kademeli iyileşme)
+setInterval(() => {
+  if (criticalErrorCount > 0) {
+    criticalErrorCount = Math.max(0, criticalErrorCount - 5);
+  }
+}, 3600000).unref();
+
 function shutdown(signal) {
   log('INFO', `${signal} alındı, kapatılıyor...`);
+  try { healer.stop(); } catch {}
   try { persistSeenIdsSync(); } catch {}
+  try { persistSeenPlateIdsSync(); } catch {}
   try { tls.kapat(); } catch {}
   server.close(() => {
     log('INFO', 'HTTP kapatıldı.');
@@ -1650,8 +3166,51 @@ process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 const server = app.listen(PORT, '0.0.0.0', () => {
-  log('INFO', `Companion çalışıyor: http://0.0.0.0:${PORT} (token:${TOKEN_PREVIEW}, kayıt:${seenIds.size})`);
-  console.log('Sağlık: GET /saglik | Kayıt: POST /kayit | Toplu: POST /kayit/batch');
+  log('INFO', `Companion hazır: http://0.0.0.0:${PORT} (v${SUREM}, token:${TOKEN_PREVIEW}, kayıt:${seenIds.size}, plaka:${seenPlateIds.size})`);
+  console.log(`  Kayıt: POST /kayit | Toplu: POST /kayit/batch`);
+  console.log(`  Plaka: POST /plaka | GET /plaka/:plate | GET /plakalar`);
+  console.log(`  Excel: ${EXCEL_PATH}`);
+  console.log(`  Plaka Excel: ${PLATE_EXCEL_PATH}`);
+  console.log(`  Log: ${LOG_PATH}`);
+  
+  // Self-healing checks ekle
+  healer.addCheck('eslesmeler.json', 
+    () => healer.validateJSON(ESLESME_YOLU),
+    (result) => healer.repairFile(ESLESME_YOLU, content => {
+      try { JSON.parse(content); return { ok: true }; }
+      catch (e) { return { ok: false, reason: e.message }; }
+    })
+  );
+  
+  healer.addCheck('seen-ids.json',
+    () => healer.validateJSON(DEDUPE_PATH),
+    (result) => {
+      const rebuilt = rebuildSeenIdsFromLog();
+      try {
+        fs.writeFileSync(DEDUPE_PATH, JSON.stringify([...rebuilt]));
+        seenIds = rebuilt;
+        return { ok: true, rebuilt: rebuilt.size };
+      } catch (e) {
+        return { ok: false, reason: e.message };
+      }
+    }
+  );
+  
+  healer.addCheck('kayitlar.jsonl',
+    () => healer.validateJSONL(LOG_PATH),
+    (result) => healer.repairFile(LOG_PATH, content => {
+      const lines = content.split('\n').filter(Boolean);
+      for (const line of lines) {
+        try { JSON.parse(line); } catch { return { ok: false, reason: 'Bozuk satır' }; }
+      }
+      return { ok: true };
+    })
+  );
+  
+  // Self-healing başlat
+  healer.start();
+  console.log('  Self-healing sistemi aktif');
+  
   // HTTPS ikinci bir dinleyici olarak AÇILIR. HTTP kapanmaz: eski kurulumlar
   // ve panel http ile çalışmaya devam eder (geriye dönük uyum).
   tls.hazirla({
@@ -1662,10 +3221,18 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   });
   const h = tls.durumBilgisi();
   if (h.aktif) {
-    console.log(`HTTPS (istege bagli canli onizleme icin): https://0.0.0.0:${HTTPS_PORT}`);
-  } else {
-    console.log(`HTTPS KAPALI — kamera çalışmayabilir. Sebep: ${h.hata || h.dogrulamaHatalari.join('; ')}`);
+    console.log(`  HTTPS hazır: https://0.0.0.0:${HTTPS_PORT}`);
   }
+  
+  // Plaka motoru durumu
+  if (plakaMotoru && plakaMotoru.denetle && plakaMotoru.denetle().kullanilabilir) {
+    console.log(`  Plaka motoru: çevrimdışı OCR hazır`);
+  } else if (plakaMotoruHatasi) {
+    console.log(`  Plaka motoru kapalı: ${plakaMotoruHatasi}`);
+  }
+  
+  console.log(`\n  Panel: http://localhost:${PORT}/`);
+  console.log(`  Telefon: http://localhost:${PORT}/telefon/\n`);
 });
 
 module.exports = { app, acceptOne, acceptBatch, validateRecord, sanitizeRecord, rebuildExcelFromLog };

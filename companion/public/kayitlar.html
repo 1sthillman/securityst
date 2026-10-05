@@ -7,6 +7,287 @@
   <title>Kayıtlar · Çınarköy Sync</title>
   <link rel="stylesheet" href="assets/theme.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    .editable-row {
+      cursor: pointer;
+    }
+    
+    .editable-row:hover {
+      background: var(--surface-2) !important;
+    }
+    
+    .editing-row {
+      background: var(--accent-soft) !important;
+    }
+    
+    .editable-cell {
+      position: relative;
+    }
+    
+    .cell-input {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.85rem;
+    }
+    
+    .cell-select {
+      width: 100%;
+      padding: 4px 6px;
+      border: 1px solid var(--accent-line);
+      border-radius: 6px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font: inherit;
+      font-size: 0.75rem;
+    }
+    
+    .edit-actions {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    
+    .edit-action-btn {
+      padding: 6px 10px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.75rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    
+    .edit-action-btn.save {
+      background: var(--ok);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(74, 222, 128, 0.3);
+    }
+    
+    .edit-action-btn.save:hover {
+      background: #22c55e;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+    }
+    
+    .edit-action-btn.cancel {
+      background: var(--surface);
+      color: var(--text-2);
+      border: 1px solid var(--line);
+    }
+    
+    .edit-action-btn.cancel:hover {
+      background: var(--danger);
+      color: #fff;
+      border-color: var(--danger);
+      transform: translateY(-1px);
+    }
+    
+    .edit-action-btn:active {
+      transform: translateY(0);
+    }
+    
+    .edit-action-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    
+    .tur-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      border: 1px solid;
+      cursor: inherit;
+    }
+    
+    .tur-kurye {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: rgba(59, 130, 246, 0.3);
+      color: #3b82f6;
+    }
+    
+    .tur-ziyaretci {
+      background: rgba(34, 197, 94, 0.1);
+      border-color: rgba(34, 197, 94, 0.3);
+      color: #22c55e;
+    }
+    
+    .tur-servis {
+      background: rgba(168, 85, 247, 0.1);
+      border-color: rgba(168, 85, 247, 0.3);
+      color: #a855f7;
+    }
+    
+    .tur-tedarikci {
+      background: rgba(249, 115, 22, 0.1);
+      border-color: rgba(249, 115, 22, 0.3);
+      color: #f97316;
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      z-index: 10000;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      animation: slideIn 0.3s ease-out;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 200px;
+    }
+    
+    .toast.success {
+      background: var(--ok);
+      color: #fff;
+    }
+    
+    .toast.error {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    @keyframes slideIn {
+      from {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+    
+    @keyframes slideOut {
+      from {
+        transform: translateX(0);
+        opacity: 1;
+      }
+      to {
+        transform: translateX(400px);
+        opacity: 0;
+      }
+    }
+    
+    .confirm-modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.2s ease-out;
+    }
+    
+    .confirm-box {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      max-width: 400px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: scaleIn 0.2s ease-out;
+    }
+    
+    .confirm-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .confirm-message {
+      color: var(--text-2);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    
+    .confirm-plate {
+      background: var(--surface-2);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: var(--accent);
+      margin: 8px 0;
+      text-align: center;
+    }
+    
+    .confirm-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    
+    .confirm-btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .confirm-btn.cancel {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    
+    .confirm-btn.cancel:hover {
+      background: var(--surface-3);
+    }
+    
+    .confirm-btn.delete {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    .confirm-btn.delete:hover {
+      background: #dc2626;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes scaleIn {
+      from {
+        transform: scale(0.9);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="ambient"></div>
@@ -22,7 +303,8 @@
         <nav class="gezinme" aria-label="Bölümler">
           <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
-          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -41,24 +323,54 @@
             <div class="canli" id="canli"><span class="nokta"></span><span>Bağlanıyor</span></div>
           </div>
           <div class="kart-govde" style="padding-bottom:8px">
-            <div class="ara-kutu" style="max-width:420px">
-              <span data-ikon="ara"></span>
-              <input type="text" id="q" placeholder="Plaka, isim, firma, daire ara…" autocomplete="off" />
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+              <div class="ara-kutu" style="flex:1;min-width:250px">
+                <span data-ikon="ara"></span>
+                <input type="text" id="q" placeholder="Plaka, isim, firma, daire ara…" autocomplete="off" />
+              </div>
+              <select id="dateFilter" style="padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-solid);color:var(--text);font-size:0.85rem;font-weight:600;min-width:140px">
+                <option value="all">Tüm Tarihler</option>
+                <option value="today" selected>Bugün</option>
+                <option value="yesterday">Dün</option>
+                <option value="last7">Son 7 Gün</option>
+                <option value="last30">Son 30 Gün</option>
+                <option value="thisMonth">Bu Ay</option>
+                <option value="custom">Özel Tarih</option>
+              </select>
+              <select id="typeFilter" style="padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-solid);color:var(--text);font-size:0.85rem;font-weight:600;min-width:120px">
+                <option value="">Tüm Türler</option>
+                <option value="kurye">Kurye</option>
+                <option value="ziyaretci">Ziyaretçi</option>
+                <option value="servis">Servis</option>
+                <option value="tedarikci">Tedarikçi</option>
+              </select>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+            <div id="customDateRange" style="display:none;margin-bottom:12px;padding:12px;background:var(--surface-2);border-radius:10px">
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                <input type="date" id="startDate" style="padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-solid);color:var(--text);font-size:0.85rem">
+                <span style="color:var(--text-2)">-</span>
+                <input type="date" id="endDate" style="padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface-solid);color:var(--text);font-size:0.85rem">
+                <button class="dugme kucuk" id="applyCustomDate">Uygula</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;align-items:center">
+              <select id="siteFilter" style="padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-solid);color:var(--text);font-size:0.85rem;font-weight:600;min-width:180px">
+                <option value="">Tüm Siteler</option>
+              </select>
               <button class="dugme sade kucuk" type="button" id="sadeAktif">Tümü</button>
               <button class="dugme sade kucuk" type="button" id="sadeSilinen">Silinenler</button>
               <span class="bosluk" style="flex:1"></span>
+              <button class="dugme kucuk" type="button" id="exportFiltered"><span data-ikon="indir"></span>Seçilenleri Export</button>
               <button class="dugme kucuk" type="button" id="excelIndir"><span data-ikon="indir"></span>Excel dosyası</button>
             </div>
           </div>
           <div class="tablo-sarmal">
             <table>
               <thead>
-                <tr><th>Tarih</th><th>Saat</th><th>Plaka</th><th>Blok / Daire</th><th>Kurye</th><th>Firma</th><th>Görevli</th><th>Not</th></tr>
+                <tr><th>Tarih</th><th>Saat</th><th>Plaka</th><th>Tür</th><th>Ad Soyad</th><th>Firma</th><th>Blok</th><th>Daire</th><th>Görevli</th><th>Not</th><th style="width:80px">İşlem</th></tr>
               </thead>
               <tbody id="govde">
-                <tr><td colspan="8"><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div></td></tr>
+                <tr><td colspan="11"><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div><div class="iskelet" style="height:14px;margin:6px 0"></div></td></tr>
               </tbody>
             </table>
           </div>
@@ -68,6 +380,20 @@
             <button class="dugme sade kucuk" type="button" id="sonraki">Sonraki<span data-ikon="ok"></span></button>
             <span class="bosluk"></span>
             <span id="sayfaBilgi"></span>
+          </div>
+        </section>
+        
+        <section class="kart" style="margin-top:16px">
+          <div class="kart-bas">
+            <h2>Bugünkü Site/Blok Girişleri</h2>
+            <span class="rozet" id="toplamBugun">0 giriş</span>
+          </div>
+          <div class="kart-govde">
+            <div id="siteStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+              <div class="iskelet" style="height:70px;border-radius:10px"></div>
+              <div class="iskelet" style="height:70px;border-radius:10px"></div>
+              <div class="iskelet" style="height:70px;border-radius:10px"></div>
+            </div>
           </div>
         </section>
       </div>
@@ -86,24 +412,364 @@
     document.querySelectorAll("[data-ikon]").forEach(function (el) { el.innerHTML = CK.ikon(el.dataset.ikon); });
 
     var LIMIT = 50, offset = 0, toplam = 0, sorgu = "", sadeSilinen = false;
+    var secilenSite = "";
+    var secilenTarih = "today"; // Varsayılan olarak bugün
+    var secilenTur = "";
+    var customStart = null;
+    var customEnd = null;
     var govde = document.getElementById("govde");
     var canliEl = document.getElementById("canli");
     var aramaZaman = null;
+    var editingRow = null;
+    var tumKayitlar = [];
+    
+    // Site listesini yükle
+    function loadSites() {
+      CK.istek('/siteler').then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.ok && d.sites) {
+            var select = document.getElementById('siteFilter');
+            d.sites.forEach(function(site) {
+              var option = document.createElement('option');
+              option.value = site.name;
+              option.textContent = site.name + (site.street ? ' - ' + site.street : '');
+              select.appendChild(option);
+            });
+            
+            // URL'den site parametresi varsa seç
+            var urlParams = new URLSearchParams(window.location.search);
+            var siteParam = urlParams.get('site');
+            if (siteParam) {
+              select.value = siteParam;
+              secilenSite = siteParam;
+              yukle();
+            }
+          }
+        });
+    }
+    loadSites();
+    
+    document.getElementById('siteFilter').addEventListener('change', function(e) {
+      secilenSite = e.target.value;
+      offset = 0;
+      yukle();
+    });
+    
+    // Tarih filtresi
+    document.getElementById('dateFilter').addEventListener('change', function(e) {
+      secilenTarih = e.target.value;
+      var customDiv = document.getElementById('customDateRange');
+      customDiv.style.display = secilenTarih === 'custom' ? 'block' : 'none';
+      if (secilenTarih !== 'custom') {
+        offset = 0;
+        yukle();
+        loadSiteStats(); // Site istatistiklerini de güncelle
+      }
+    });
+    
+    // Tür filtresi
+    document.getElementById('typeFilter').addEventListener('change', function(e) {
+      secilenTur = e.target.value;
+      offset = 0;
+      yukle();
+    });
+    
+    // Özel tarih uygula
+    document.getElementById('applyCustomDate').addEventListener('click', function() {
+      customStart = document.getElementById('startDate').value;
+      customEnd = document.getElementById('endDate').value;
+      if (customStart && customEnd) {
+        offset = 0;
+        yukle();
+        loadSiteStats(); // Site istatistiklerini de güncelle
+      } else {
+        showToast('Başlangıç ve bitiş tarihini seçin', 'error');
+      }
+    });
+
+    function showToast(message, type) {
+      var toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      
+      var icon = type === 'success' 
+        ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      
+      toast.innerHTML = icon + '<span>' + message + '</span>';
+      document.body.appendChild(toast);
+      
+      setTimeout(function() {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 3000);
+    }
+
+    function showConfirm(title, message, onConfirm) {
+      var modal = document.createElement('div');
+      modal.className = 'confirm-modal';
+      modal.innerHTML = 
+        '<div class="confirm-box">' +
+          '<div class="confirm-title">' +
+            '<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2">' +
+              '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>' +
+            '</svg>' +
+            '<span>' + title + '</span>' +
+          '</div>' +
+          '<div class="confirm-message">' + message + '</div>' +
+          '<div class="confirm-actions">' +
+            '<button class="confirm-btn cancel">İptal</button>' +
+            '<button class="confirm-btn delete">Sil</button>' +
+          '</div>' +
+        '</div>';
+      
+      document.body.appendChild(modal);
+      
+      modal.querySelector('.cancel').addEventListener('click', function() {
+        modal.remove();
+      });
+      
+      modal.querySelector('.delete').addEventListener('click', function() {
+        modal.remove();
+        onConfirm();
+      });
+      
+      modal.addEventListener('click', function(e) {
+        if (e.target === modal) modal.remove();
+      });
+    }
+
+    window.deleteRecord = function(id, plate) {
+      console.log('[deleteRecord] Çağrıldı - id:', id, 'plate:', plate);
+      showConfirm(
+        'Kaydı Sil',
+        'Bu kaydı silmek istediğinize emin misiniz?<div class="confirm-plate">' + CK.kacis(plate) + '</div><div style="color:var(--danger);font-size:0.8rem;margin-top:8px">⚠️ Bu işlem geri alınamaz!</div>',
+        function() {
+          console.log('[deleteRecord] Silme onaylandı, DELETE isteği gönderiliyor...');
+          CK.istek('/kayit/' + id, {
+            method: 'DELETE',
+            cache: 'no-cache'
+          })
+          .then(function(r) { 
+            console.log('[deleteRecord] Response status:', r.status);
+            return r.json(); 
+          })
+          .then(function(d) {
+            console.log('[deleteRecord] Response data:', d);
+            if (d.ok || d.result === 'deleted') {
+              showToast('Kayıt silindi', 'success');
+              // Veriyi yeniden çek
+              setTimeout(function() {
+                console.log('[deleteRecord] Sayfa yenileniyor...');
+                yukle(offset);
+              }, 300);
+            } else {
+              showToast('Hata: ' + (d.error || 'Bilinmeyen hata'), 'error');
+            }
+          })
+          .catch(function(e) {
+            console.error('[deleteRecord] Hata:', e);
+            showToast('Silme işlemi başarısız: ' + e.message, 'error');
+          });
+        }
+      );
+    };
+
+    function getTurClass(tur) {
+      var t = (tur || "").toLowerCase();
+      if (t.includes("ziyaret")) return { class: "tur-ziyaretci", label: "Ziyaretçi" };
+      if (t.includes("servis")) return { class: "tur-servis", label: "Servis" };
+      if (t.includes("tedarik")) return { class: "tur-tedarikci", label: "Tedarikçi" };
+      return { class: "tur-kurye", label: "Kurye" };
+    }
 
     function satir(k) {
       var tr = document.createElement("tr");
-      if (k.deleted) tr.className = "silindi";
+      tr.className = "editable-row";
+      if (k.deleted) tr.className += " silindi";
+      tr.dataset.id = k.id || k.uid;
+      
+      var turInfo = getTurClass(k.type || k.tur);
+      var kayitId = k.id || k.uid;
+      
       tr.innerHTML =
         '<td class="mono dim">' + CK.kacis(k.ts ? CK.tarihTR(k.ts) : k.date || "") + "</td>" +
         '<td class="mono dim">' + CK.kacis(k.time || (k.ts ? CK.saatTR(k.ts) : "")) + "</td>" +
-        '<td class="plaka">' + CK.kacis(k.plate) +
+        '<td class="plaka editable-cell" data-field="plate">' + CK.kacis(k.plate) +
           (k.deleted ? ' <span class="rozet uyari">SİLİNDİ</span>' : "") + "</td>" +
-        '<td class="dim">' + CK.kacis((k.site || "") + (k.unit ? " / " + k.unit : "")) + "</td>" +
-        "<td>" + CK.kacis(k.courier) + "</td>" +
-        '<td class="dim">' + CK.kacis(k.company || "") + "</td>" +
-        '<td class="dim">' + CK.kacis(k.guard || "") + "</td>" +
-        '<td class="dim">' + CK.kacis(k.note || "") + "</td>";
+        '<td class="editable-cell" data-field="type"><span class="tur-badge ' + turInfo.class + '">' + turInfo.label + '</span></td>' +
+        '<td class="editable-cell" data-field="courier">' + CK.kacis(k.courier || k.name || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="company">' + CK.kacis(k.company || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="site">' + CK.kacis(k.site || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="unit">' + CK.kacis(k.unit || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="guard">' + CK.kacis(k.guard || "") + "</td>" +
+        '<td class="dim editable-cell" data-field="note" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + CK.kacis(k.note || "") + "</td>" +
+        '<td>' +
+          '<button class="edit-action-btn" onclick="deleteRecord(\'' + kayitId + '\', \'' + CK.kacis(k.plate) + '\')" ' +
+          'style="padding:6px 10px;background:var(--danger);color:#fff;border:none;border-radius:8px;cursor:pointer;display:flex;align-items:center;gap:4px;font-size:0.7rem" ' +
+          'title="Sil">' +
+            '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">' +
+              '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>' +
+            '</svg>' +
+          '</button>' +
+        '</td>';
+      
       return tr;
+    }
+
+    function makeEditable(row) {
+      if (editingRow === row) return;
+      if (editingRow) restoreRow(editingRow);
+      
+      editingRow = row;
+      row.classList.add('editing-row');
+      
+      var kayitId = row.dataset.id;
+      var kayit = tumKayitlar.find(function(k) { return (k.id || k.uid) === kayitId; });
+      if (!kayit) return;
+
+      var cells = row.querySelectorAll('.editable-cell');
+      cells.forEach(function(cell) {
+        var field = cell.dataset.field;
+        var value = kayit[field] || (field === 'courier' ? kayit.name : '') || '';
+        cell.dataset.original = cell.innerHTML;
+        
+        if (field === 'type') {
+          var turInfo = getTurClass(kayit.type || kayit.tur);
+          cell.innerHTML = '<select class="cell-select">' +
+            '<option value="Kurye"' + (turInfo.label === 'Kurye' ? ' selected' : '') + '>Kurye</option>' +
+            '<option value="Ziyaretçi"' + (turInfo.label === 'Ziyaretçi' ? ' selected' : '') + '>Ziyaretçi</option>' +
+            '<option value="Servis"' + (turInfo.label === 'Servis' ? ' selected' : '') + '>Servis</option>' +
+            '<option value="Tedarikçi"' + (turInfo.label === 'Tedarikçi' ? ' selected' : '') + '>Tedarikçi</option>' +
+          '</select>';
+        } else if (field === 'note') {
+          cell.innerHTML = '<input type="text" class="cell-input" value="' + CK.kacis(value) + '" style="width:140px">';
+        } else if (field === 'plate') {
+          cell.innerHTML = '<input type="text" class="cell-input" value="' + CK.kacis(value) + '">';
+        } else {
+          cell.innerHTML = '<input type="text" class="cell-input" value="' + CK.kacis(value) + '">';
+        }
+      });
+      
+      var lastCell = row.querySelector('td:last-child');
+      lastCell.dataset.original = lastCell.innerHTML;
+      lastCell.innerHTML = '<div class="edit-actions">' +
+        '<button class="edit-action-btn save" title="Kaydet">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 13l4 4L19 7"/></svg>' +
+        '</button>' +
+        '<button class="edit-action-btn cancel" title="İptal">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+        '</button>' +
+      '</div>';
+      
+      lastCell.querySelector('.save').addEventListener('click', function(e) {
+        e.stopPropagation();
+        saveEdit(row, kayit);
+      });
+      
+      lastCell.querySelector('.cancel').addEventListener('click', function(e) {
+        e.stopPropagation();
+        restoreRow(row);
+        editingRow = null;
+      });
+    }
+
+    function showToast(message, type) {
+      var toast = document.createElement('div');
+      toast.className = 'toast ' + type;
+      
+      var icon = type === 'success' 
+        ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      
+      toast.innerHTML = icon + '<span>' + message + '</span>';
+      document.body.appendChild(toast);
+      
+      setTimeout(function() {
+        toast.style.animation = 'slideOut 0.3s ease-in';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 3000);
+    }
+
+    function deleteRecord(id, plate) {
+      if (!confirm('Bu kaydı silmek istediğinize emin misiniz?\n\nPlaka: ' + plate + '\n\nBu işlem geri alınamaz!')) {
+        return;
+      }
+      
+      CK.istek('/kayit/' + id, {
+        method: 'DELETE'
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok || d.result === 'deleted') {
+          showToast('Kayıt silindi', 'success');
+          yukle(offset);
+        } else {
+          showToast('Hata: ' + (d.error || 'Bilinmeyen hata'), 'error');
+        }
+      })
+      .catch(function(e) {
+        showToast('Silme işlemi başarısız: ' + e.message, 'error');
+      });
+    }
+
+    function restoreRow(row) {
+      if (!row) return;
+      row.classList.remove('editing-row');
+      
+      var cells = row.querySelectorAll('.editable-cell');
+      cells.forEach(function(cell) {
+        if (cell.dataset.original) {
+          cell.innerHTML = cell.dataset.original;
+          delete cell.dataset.original;
+        }
+      });
+      
+      var lastCell = row.querySelector('td:last-child');
+      if (lastCell.dataset.original) {
+        lastCell.innerHTML = lastCell.dataset.original;
+        delete lastCell.dataset.original;
+      }
+    }
+
+    function saveEdit(row, originalKayit) {
+      var updated = {
+        id: originalKayit.id || originalKayit.uid,
+        plate: row.querySelector('[data-field="plate"] input').value.trim(),
+        type: row.querySelector('[data-field="type"] select').value,
+        courier: row.querySelector('[data-field="courier"] input').value.trim(),
+        company: row.querySelector('[data-field="company"] input').value.trim(),
+        site: row.querySelector('[data-field="site"] input').value.trim(),
+        unit: row.querySelector('[data-field="unit"] input').value.trim(),
+        guard: row.querySelector('[data-field="guard"] input').value.trim(),
+        note: row.querySelector('[data-field="note"] input').value.trim(),
+        ts: originalKayit.ts,
+        date: originalKayit.date,
+        time: originalKayit.time,
+        updatedAt: Date.now()
+      };
+
+      CK.istek('/kayit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated)
+      })
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok || d.result === 'updated') {
+          showToast('Kayıt güncellendi', 'success');
+          editingRow = null;
+          yukle(offset);
+        } else {
+          showToast('Hata: ' + (d.error || 'Bilinmeyen hata'), 'error');
+          restoreRow(row);
+          editingRow = null;
+        }
+      })
+      .catch(function(e) {
+        showToast('Güncelleme başarısız', 'error');
+        restoreRow(row);
+        editingRow = null;
+      });
     }
 
     function ciz(veri) {
@@ -111,12 +777,21 @@
       document.getElementById("toplam").textContent = toplam + " kayıt";
       govde.innerHTML = "";
       var kayitlar = veri.records || [];
+      tumKayitlar = kayitlar.slice();
       if (sadeSilinen) kayitlar = kayitlar.filter(function (k) { return k.deleted; });
       if (!kayitlar.length) {
-        govde.innerHTML = '<tr><td colspan="8"><div class="bos">' + CK.ikon("ara") +
+        govde.innerHTML = '<tr><td colspan="11"><div class="bos">' + CK.ikon("ara") +
           "<p>Eşleşen kayıt yok.</p></div></td></tr>";
       } else {
-        kayitlar.forEach(function (k) { govde.appendChild(satir(k)); });
+        kayitlar.forEach(function (k) { 
+          var row = satir(k);
+          govde.appendChild(row);
+          
+          row.addEventListener('click', function(e) {
+            if (e.target.closest('input, select, button')) return;
+            makeEditable(row);
+          });
+        });
       }
       var son = Math.min(offset + LIMIT, toplam);
       document.getElementById("sayfa").textContent = toplam ? (offset + 1) + "–" + son + " / " + toplam : "0 kayıt";
@@ -126,10 +801,82 @@
     function yukle(yeniOffset) {
       if (yeniOffset != null) offset = Math.max(0, yeniOffset);
       var url = "/kayitlar?limit=" + LIMIT + "&offset=" + offset + "&q=" + encodeURIComponent(sorgu);
+      if (secilenSite) url += "&site=" + encodeURIComponent(secilenSite);
       CK.istek(url)
         .then(function (r) { return r.json(); })
-        .then(ciz)
-        .catch(function () { CK.bildir("Kayıtlar alınamadı", "hatali"); });
+        .then(function(veri) {
+          var records = veri.records || [];
+          
+          // Tarih filtresi uygula
+          if (secilenTarih !== 'all') {
+            records = filterByDate(records, secilenTarih);
+          }
+          
+          // Tür filtresi uygula
+          if (secilenTur) {
+            records = records.filter(function(r) {
+              var tur = (r.type || r.tur || '').toLowerCase();
+              return tur.includes(secilenTur);
+            });
+          }
+          
+          // Site filtresi
+          if (secilenSite) {
+            records = records.filter(function(r) {
+              return r.site === secilenSite;
+            });
+          }
+          
+          veri.records = records;
+          veri.total = records.length;
+          ciz(veri);
+        })
+        .catch(function () { showToast("Kayıtlar alınamadı", "error"); });
+    }
+    
+    function filterByDate(records, dateFilter) {
+      var now = new Date();
+      var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      return records.filter(function(r) {
+        if (!r) return false;
+        var rDate;
+        if (r.ts) {
+          rDate = new Date(typeof r.ts === 'string' ? r.ts : r.ts);
+        } else if (r.date) {
+          var parts = r.date.split('.');
+          rDate = new Date(parts[2], parts[1]-1, parts[0]);
+        } else {
+          return false;
+        }
+        
+        switch(dateFilter) {
+          case 'today':
+            return rDate >= today;
+          case 'yesterday':
+            var yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+            return rDate >= yesterday && rDate < today;
+          case 'last7':
+            var last7 = new Date(today);
+            last7.setDate(last7.getDate() - 7);
+            return rDate >= last7;
+          case 'last30':
+            var last30 = new Date(today);
+            last30.setDate(last30.getDate() - 30);
+            return rDate >= last30;
+          case 'thisMonth':
+            return rDate.getMonth() === now.getMonth() && rDate.getFullYear() === now.getFullYear();
+          case 'custom':
+            if (!customStart || !customEnd) return true;
+            var start = new Date(customStart);
+            var end = new Date(customEnd);
+            end.setHours(23, 59, 59);
+            return rDate >= start && rDate <= end;
+          default:
+            return true;
+        }
+      });
     }
 
     document.getElementById("q").addEventListener("input", function (e) {
@@ -154,8 +901,143 @@
       yukle(0);
     });
     document.getElementById("excelIndir").addEventListener("click", function () {
-      CK.bildir("Excel dosyası bilgisayarda zaten güncel: companion/data/kayitlar.xlsx", "bilgi");
+      showToast("Excel dosyası bilgisayarda zaten güncel: companion/data/kayitlar.xlsx", "success");
     });
+    
+    // Filtrelenmiş kayıtları export et
+    document.getElementById("exportFiltered").addEventListener("click", function() {
+      // Mevcut filtreleri uygulayarak tüm kayıtları çek
+      CK.istek('/kayitlar?limit=10000')
+        .then(function(r) { return r.json(); })
+        .then(function(veri) {
+          var records = veri.records || [];
+          
+          // Tüm filtreleri uygula
+          if (secilenTarih !== 'all') records = filterByDate(records, secilenTarih);
+          if (secilenTur) {
+            records = records.filter(function(r) {
+              var tur = (r.type || r.tur || '').toLowerCase();
+              return tur.includes(secilenTur);
+            });
+          }
+          if (secilenSite) {
+            records = records.filter(function(r) { return r.site === secilenSite; });
+          }
+          if (sorgu) {
+            records = records.filter(function(r) {
+              var searchText = (r.plate + r.courier + r.company + r.site + r.unit).toLowerCase();
+              return searchText.includes(sorgu.toLowerCase());
+            });
+          }
+          
+          if (records.length === 0) {
+            showToast('Filtreye uygun kayıt bulunamadı', 'error');
+            return;
+          }
+          
+          // CSV formatında indir
+          var csv = 'Tarih,Saat,Plaka,Tür,Ad Soyad,Firma,Blok,Daire,Görevli,Not\n';
+          records.forEach(function(r) {
+            var tarih = r.date || (r.ts ? new Date(r.ts).toLocaleDateString('tr-TR') : '');
+            var saat = r.time || (r.ts ? new Date(r.ts).toLocaleTimeString('tr-TR') : '');
+            csv += [
+              tarih,
+              saat,
+              r.plate || '',
+              r.type || r.tur || '',
+              r.courier || r.name || '',
+              r.company || '',
+              r.site || '',
+              r.unit || '',
+              r.guard || '',
+              (r.note || '').replace(/,/g, ';').replace(/\n/g, ' ')
+            ].join(',') + '\n';
+          });
+          
+          var blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+          var link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          var fileName = 'kayitlar-' + (secilenTarih === 'today' ? 'bugun' : secilenTarih === 'custom' ? customStart + '_' + customEnd : secilenTarih) + '.csv';
+          link.download = fileName;
+          link.click();
+          
+          showToast(records.length + ' kayıt export edildi', 'success');
+        })
+        .catch(function() {
+          showToast('Export başarısız', 'error');
+        });
+    });
+
+    // Site istatistiklerini yükle
+    function loadSiteStats() {
+      Promise.all([
+        CK.istek('/siteler').then(function(r) { return r.json(); }),
+        CK.istek('/kayitlar').then(function(r) { return r.json(); })
+      ]).then(function(results) {
+        var sitesData = results[0];
+        var recordsData = results[1];
+        
+        if (!sitesData.ok || !recordsData.ok) {
+          document.getElementById('siteStats').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-2)">İstatistikler yüklenemedi</div>';
+          return;
+        }
+        
+        var sites = sitesData.sites || [];
+        var records = recordsData.records || [];
+        
+        // Aktif tarih filtresine göre kayıtları filtrele
+        if (secilenTarih !== 'all') {
+          records = filterByDate(records, secilenTarih);
+        }
+        
+        // Site bazında grupla
+        var siteMap = {};
+        sites.forEach(function(site) {
+          siteMap[site.name] = { name: site.name, count: 0, street: site.street || '' };
+        });
+        
+        records.forEach(function(r) {
+          var siteName = r.site || 'Bilinmeyen';
+          if (!siteMap[siteName]) {
+            siteMap[siteName] = { name: siteName, count: 0, street: '' };
+          }
+          siteMap[siteName].count++;
+        });
+        
+        var siteStats = Object.values(siteMap).sort(function(a, b) { return b.count - a.count; });
+        
+        var dateLabel = secilenTarih === 'today' ? 'Bugünkü' : 
+                       secilenTarih === 'yesterday' ? 'Dünkü' : 
+                       secilenTarih === 'last7' ? 'Son 7 Günün' : 
+                       secilenTarih === 'last30' ? 'Son 30 Günün' : 
+                       secilenTarih === 'thisMonth' ? 'Bu Ayki' : 
+                       secilenTarih === 'custom' ? 'Seçili Tarihteki' : 'Toplam';
+        
+        document.getElementById('toplamBugun').textContent = dateLabel + ' ' + records.length + ' giriş';
+        
+        var container = document.getElementById('siteStats');
+        if (siteStats.length === 0 || records.length === 0) {
+          container.innerHTML = '<div style="grid-column:1/-1;padding:30px;text-align:center;color:var(--text-2)">Seçili tarihte giriş kaydı yok</div>';
+          return;
+        }
+        
+        container.innerHTML = siteStats.map(function(site) {
+          if (site.count === 0) return '';
+          return '<div style="background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;transition:all 0.2s;cursor:pointer" ' +
+            'onclick="document.getElementById(\'siteFilter\').value=\'' + CK.kacis(site.name).replace(/'/g, "\\'") + '\';document.getElementById(\'siteFilter\').dispatchEvent(new Event(\'change\'));window.scrollTo({top:0,behavior:\'smooth\'})">' +
+            '<div>' +
+              '<div style="font-weight:700;font-size:0.9rem;color:var(--text)">' + CK.kacis(site.name) + '</div>' +
+              (site.street ? '<div style="font-size:0.7rem;color:var(--text-2)">' + CK.kacis(site.street) + '</div>' : '') +
+            '</div>' +
+            '<div style="font-size:1.5rem;font-weight:700;color:var(--accent)">' + site.count + '</div>' +
+          '</div>';
+        }).join('');
+      }).catch(function(e) {
+        console.error('Site stats error:', e);
+      });
+    }
+    
+    loadSiteStats();
 
     var canliBag = new CK.Canli(function () {
       var self = this;
@@ -165,7 +1047,10 @@
       self.izle(function (aktif, veri) {
         canliEl.className = "canli " + (aktif ? "aktif" : "hata");
         canliEl.lastElementChild.textContent = aktif ? "Canlı akış" : "Bağlantı bekleniyor";
-        if (veri && veri.tip) yukle(offset === 0 ? 0 : undefined);
+        if (veri && veri.tip) {
+          yukle(offset === 0 ? 0 : undefined);
+          loadSiteStats(); // Real-time güncelleme
+        }
       });
       self.tazele();
       yukle(0);

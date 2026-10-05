@@ -4,9 +4,369 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#0a0e0c" />
-  <title>Eşleşme · Çınarköy Sync</title>
+  <title>Telefonu Bağla · Çınarköy Sync</title>
   <link rel="stylesheet" href="assets/theme.css" />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    .eslesme-container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .eslesme-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .step-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+    
+    .step-card:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px -8px rgba(0,0,0,0.3);
+      border-color: var(--accent-line);
+    }
+    
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    .step-number {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      background: var(--accent);
+      color: #000;
+      border-radius: 50%;
+      font-weight: 700;
+      font-size: 1rem;
+      flex-shrink: 0;
+    }
+    
+    .step-title {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin: 0;
+      color: var(--text);
+    }
+    
+    .step-desc {
+      color: var(--text-2);
+      font-size: 0.88rem;
+      line-height: 1.5;
+      margin-bottom: 20px;
+    }
+    
+    .qr-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      width: 100%;
+      min-width: 0;
+    }
+    
+    .qr-display {
+      background: #fff;
+      padding: 16px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      margin-bottom: 16px;
+      width: 200px;
+      height: 200px;
+    }
+    
+    .qr-display svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    
+    .qr-display .loading {
+      color: #999;
+      font-size: 0.85rem;
+      text-align: center;
+    }
+    
+    .url-display {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+    }
+    
+    .url-text {
+      flex: 1;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      color: var(--text-3);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      max-width: 100%;
+      word-break: break-all;
+    }
+    
+    .url-display button {
+      flex-shrink: 0;
+      padding: 6px 12px;
+      font-size: 0.75rem;
+      border-radius: 8px;
+    }
+    
+    .action-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 24px;
+    }
+    
+    .action-btn {
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-family: inherit;
+    }
+    
+    .action-btn svg {
+      width: 16px;
+      height: 16px;
+    }
+    
+    .action-btn-primary {
+      background: var(--accent);
+      color: #000;
+    }
+    
+    html[data-tema="acik"] .action-btn-primary {
+      color: #fff;
+    }
+    
+    .action-btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    
+    .action-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    }
+    
+    .action-btn:active {
+      transform: translateY(0);
+    }
+    
+    .status-banner {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-top: 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    
+    .status-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .status-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .status-icon.success {
+      background: rgba(79, 216, 201, 0.15);
+      color: var(--cyan);
+    }
+    
+    .status-icon.error {
+      background: rgba(255, 107, 91, 0.15);
+      color: var(--danger);
+    }
+    
+    .status-text {
+      flex: 1;
+      min-width: 200px;
+    }
+    
+    .status-label {
+      font-size: 0.75rem;
+      color: var(--text-3);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    
+    .status-value {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    
+    .status-badge-inline {
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid;
+      flex-shrink: 0;
+    }
+    
+    .status-badge-inline.status-ok {
+      color: var(--ok);
+      background: rgba(79, 216, 201, 0.1);
+      border-color: rgba(79, 216, 201, 0.3);
+    }
+    
+    .status-badge-inline.status-error {
+      color: var(--danger);
+      background: rgba(255, 107, 91, 0.1);
+      border-color: rgba(255, 107, 91, 0.3);
+    }
+    
+    .help-section {
+      margin-top: 24px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .help-header {
+      padding: 16px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+      transition: background 0.2s;
+    }
+    
+    .help-header:hover {
+      background: var(--surface-2);
+    }
+    
+    .help-header svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    
+    .help-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      flex: 1;
+    }
+    
+    .help-header .arrow {
+      transition: transform 0.3s;
+    }
+    
+    .help-section[open] .help-header .arrow {
+      transform: rotate(90deg);
+    }
+    
+    .help-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    
+    .help-section[open] .help-content {
+      max-height: 600px;
+    }
+    
+    .help-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      padding: 0 20px 20px;
+    }
+    
+    .help-item {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px;
+    }
+    
+    .help-item-title {
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    
+    .help-item-desc {
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: var(--text-2);
+      margin: 0;
+    }
+    
+    @media (max-width: 768px) {
+      .eslesme-grid {
+        grid-template-columns: 1fr;
+      }
+      .action-grid {
+        grid-template-columns: 1fr;
+      }
+      .help-grid {
+        grid-template-columns: 1fr;
+      }
+      .status-banner {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .status-text {
+        min-width: 0;
+      }
+    }
+  </style>
 </head>
 <body>
   <div class="ambient"></div>
@@ -15,14 +375,21 @@
       <div class="ic">
         <div class="marka">
           <div class="marka-logo" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 5v7l4.5 3"/></svg>
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <circle cx="12" cy="12" r="7"/><path d="M12 5v7l4.5 3"/>
+            </svg>
           </div>
-          <div class="marka-yazi"><b>Çınarköy Sync</b><span>Telefon → Bilgisayar Excel aktarımı</span></div>
+          <div class="marka-yazi">
+            <b>Çınarköy Sync</b>
+            <span>Telefon Bağlantısı</span>
+          </div>
         </div>
         <nav class="gezinme" aria-label="Bölümler">
           <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
           <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
-          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/eslesme.html" class="aktif"><span data-ikon="esle"></span><span>Telefon</span></a>
+          <a href="/cihazlar.html"><span data-ikon="wifi"></span><span>Cihazlar</span></a>
           <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
         </nav>
         <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
@@ -33,198 +400,105 @@
     </header>
 
     <main class="ana">
-      <div class="kabuk">
-        <section class="kart" style="margin-bottom:14px">
-          <div class="kart-bas"><h2>Telefonu eşleştir</h2><span class="rozet" id="durumRozet">—</span></div>
-          <div class="kart-govde">
-            <div class="eşleşme-duzen">
-              <div class="qr-kutu" id="qr"><div class="bekle">QR hazırlanıyor…</div></div>
-              <div class="eşleşme-bilgi">
-                <p class="muted" style="font-size:.86rem;line-height:1.6;margin-bottom:14px">
-                  Telefonun kamerasıyla bu kodu okutun. Uygulama açılınca adres ve anahtar
-                  otomatik dolar — hiçbir şey yazmanıza gerek kalmaz.
-                </p>
-
-                <!-- ============================================================
-                     TELEFONDA AÇILACAK ADRES — SERTİFİKA GEREKMEZ
-                     ============================================================
-                     Ölçülen hata (kullanıcı, iki kez): "HTTPS nerede,
-                     telefondan nasıl açacağız?" ve ardından "Telefona sertifika
-                     indirmek ile olacak iş değil, müşterilerimizi uğraştırmamız
-                     gerekiyor."
-
-                     Ölçülen gerçek: getUserMedia (uygulama içi canlı önizleme)
-                     güvenli kaynak ister; ama telefonun KENDİ kamerası
-                     (capture="environment") istemez. Bkz. telefon/yerel-kamera.js.
-
-                     Bu yüzden buradaki adres HTTP olur ve kullanıcı hiçbir
-                     ayar yapmaz. Daha önce https birincil gösteriliyordu; ölçüldü
-                     ki bu, kullanıcının tarayıcının korkutucu uyarı sayfasıyla
-                     karşılaşmasına yol açıyor — kabul edilemeyen bir ilk izlenim.
-                     ============================================================ -->
-                <div id="telefonKutusu" style="border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;background:color-mix(in srgb,var(--surface-solid) 55%,transparent)">
-                  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px">
-                    <b style="font-size:.95rem">Telefonda şu adresi açın</b>
-                    <span class="rozet" id="kameraRozet">—</span>
-                  </div>
-
-                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">
-                    <code class="mono" id="telefonAdres" style="flex:1;min-width:240px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:.95rem;font-weight:700">—</code>
-                    <span id="telefonKopya"></span>
-                    <a class="dugme kucuk" id="telefonAc" href="#" target="_blank" rel="noopener">Aç</a>
-                  </div>
-
-                  <p class="muted" style="font-size:.86rem;line-height:1.65;margin:0 0 10px">
-                    <b>Hiçbir ayar gerekmez.</b> Uygulamada <b>kamera</b> düğmesine
-                    basın — telefonunuzun kendi kamerası açılır, plakayı çekersiniz,
-                    okuma yapılır. Sertifika indirmeye, kurmaya ya da ayar değiştirmeye
-                    ihtiyacınız <b>yok</b>.
-                  </p>
-
-                  <details id="canliDetay">
-                    <summary style="cursor:pointer;font-size:.86rem;font-weight:600;margin-bottom:6px">
-                      Canlı önizleme ve güvenli bağlantı (isteğe bağlı, tek seferlik)
-                    </summary>
-
-                    <p class="muted" style="font-size:.83rem;line-height:1.65;margin:8px 0 10px">
-                      <b>Bunun için ne yapılır?</b> Hiçbir şey — sistem kendisi
-                      hazır. Yalnızca aşağıdaki kodu telefonun kamerasıyla
-                      okutup sertifikayı <b>bir kez</b> kurarsınız. Bundan sonra
-                      uygulama https'i kendiliğinden kullanır, IP değişse bile geçerli
-                      kalır ve <b>nöbetçi hiçbir şey yapmaz</b>.
-                    </p>
-
-                    <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start;margin-bottom:10px">
-                      <div id="kokQrKutu" style="text-align:center">
-                        <div id="kokQr" style="width:168px;height:168px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:12px;background:#fff"></div>
-                        <div class="muted" style="font-size:.74rem;margin-top:5px;max-width:168px">Kodu telefonun kamerasıyla okutun</div>
-                      </div>
-                      <div style="flex:1;min-width:240px">
-                        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-                          <code class="mono" id="kokCaAdres" style="flex:1;min-width:200px;padding:9px 11px;border-radius:10px;border:1px solid var(--line);font-size:.84rem">—</code>
-                          <a class="dugme sade kucuk" id="kokIndir" href="/kurulum/kok.cer" download>İndir</a>
-                        </div>
-                        <div class="muted" style="font-size:.78rem;line-height:1.6" id="kokAdimlari"></div>
-                      </div>
-                    </div>
-
-                    <p class="muted" style="font-size:.79rem;line-height:1.6;margin:0 0 8px">
-                      <b>Android (Chrome):</b> Kodu okutun → dosya indirilir →
-                      <b>Ayarlar › Güvenlik › Şifreleme ve Kimlik Bilgileri › Sertifika Yükle</b>
-                      → <b>CA sertifikası</b>. Kurulumda telefon kimlik doğrulaması ister.
-                    </p>
-                    <p class="muted" style="font-size:.79rem;line-height:1.6;margin:0 0 8px">
-                      <b>iPhone:</b> Kodu okutun → dosya indirilir →
-                      <b>Ayarlar › Genel › VPN ve Cihaz Yönetimi › profili Kur</b> →
-                      sonra <b>Ayarlar › Genel › Hakkında › Sertifika Güven Ayarları</b>
-                      içinde Çınarköy satırını <b>açın</b>.
-                    </p>
-                    <p class="muted" style="font-size:.78rem;line-height:1.6;margin:0 0 8px">
-                      <b>Bilgisayarda hiçbir şey yapmanıza gerek yok.</b> Panel
-                      <code>http</code> üzerinden çalışır; Windows'a hiçbir şey yazılmaz.
-                    </p>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-                      <code class="mono" id="httpsAdres" style="flex:1;min-width:200px;padding:9px 11px;border-radius:10px;border:1px solid var(--line);font-size:.84rem">—</code>
-                      <a class="dugme sade kucuk" id="httpsAc" href="#" target="_blank" rel="noopener">Canlı önizlemeyi aç</a>
-                    </div>
-                    <p class="muted" style="font-size:.78rem;line-height:1.6;margin:6px 0 0" id="kokDurum">—</p>
-                  </details>
-                </div>
-
-                <!-- ============================================================
-                     API ANAHTARI — web sitesine bağlamak için
-                     ============================================================
-                     Kullanıcı isteği: anahtar burada görünmeli ki Vercel /
-                     GitHub ayarlarına yapıştırılabilsin.
-
-                     GÜVENLİK: bu sayfa yalnızca bu bilgisayardan açılabilir
-                     (panel ağa kapalı). Anahtar, aynı ağdaki cihazların
-                     okuyabileceği /eslesme ucunda VERİLMEZ.
-                     ============================================================ -->
-                <div id="anahtarKutu" class="alan" style="display:none;margin-bottom:16px">
-                  <label>API anahtarı</label>
-                  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-                    <code class="mono" id="anahtarDeger" style="flex:1;min-width:260px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);font-size:.92rem;word-break:break-all">—</code>
-                    <span id="anahtarKopya"></span>
-                  </div>
-                  <p class="muted" style="font-size:.82rem;line-height:1.65;margin:0 0 8px">
-                    <b>Ne işe yarar?</b> Uygulamayı web sitesine (Vercel / GitHub)
-                    yayınladığınızda, sitenin bu bilgisayardaki sunucuya
-                    okuma ve yazma isteği atabilmesi için gereklidir.
-                  </p>
-                  <ol class="adimlar" style="font-size:.83rem;line-height:1.65;margin:0 0 8px">
-                    <li><span>Yukarıdaki anahtarı kopyalayın.</span></li>
-                    <li><span>Yayın platformunuzun ortam değişkenlerine
-                      <code>CK_ANAHTAR</code> adıyla ekleyin.</span></li>
-                    <li><span>Uygulama isteklerinde başlık olarak gönderin:
-                      <code>Authorization: Bearer &lt;anahtar&gt;</code></span></li>
-                  </ol>
-                  <p class="muted" style="font-size:.8rem;line-height:1.6;margin:0 0 8px" id="anahtarBilgi">—</p>
-                  <p class="muted" style="font-size:.79rem;line-height:1.6;margin:0">
-                    <b>Dürüst uyarı:</b> Tarayıcıda çalışan bir anahtar gizli
-                    <i>olamaz</i> — sayfa onu sunucuya göndermek zorundadır. Bu
-                    anahtar <b>kişisel veriyi</b> korur (aynı Wi-Fi'taki misafire
-                    karşı). Anahtarın kendisini internete karşı gizli tutmak
-                    tarayıcıda mümkün değildir. Gerçek koruma sırası: (1) ağ —
-                    sunucu internete açılmaz, (2) anahtar — istekler doğrulanır,
-                    (3) eşleşme izin listesi — yalnızca tanımlı cihazlar anahtar alır.
-                  </p>
-                </div>
-
-                <div class="alan">
-                  <label>Diğer adresler (panel ve yedek)</label>
-                  <div id="adresler"></div>
-                </div>
-
-                <div class="alan">
-                  <label>Eşleşme anahtarı</label>
-                  <div style="display:flex;gap:8px;align-items:center">
-                    <code class="mono" id="anahtar" style="flex:1;padding:11px 13px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--surface-solid) 55%,transparent);word-break:break-all;font-size:.8rem">—</code>
-                    <span id="anahtarKopya"></span>
-                  </div>
-                </div>
-
-                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
-                  <button class="dugme kucuk" type="button" id="baglantiDene"><span data-ikon="wifi"></span>Bağlantıyı dene</button>
-                  <button class="dugme sade kucuk" type="button" id="yenile"><span data-ikon="yenile"></span>Yenile</button>
-                </div>
-                <div id="mesaj" style="margin-top:10px;min-height:18px;font-size:.8rem"></div>
+      <div class="kabuk eslesme-container">
+        
+        <div class="eslesme-grid">
+          
+          <div class="step-card">
+            <div class="step-header">
+              <div class="step-number">1</div>
+              <h2 class="step-title">Uygulamayı Aç</h2>
+            </div>
+            <p class="step-desc">Telefonun kamerasıyla bu kodu okut, uygulama otomatik açılacak</p>
+            
+            <div class="qr-container">
+              <div class="qr-display" id="qrFirst">
+                <div class="loading">Yükleniyor...</div>
+              </div>
+              
+              <div class="url-display">
+                <div class="url-text" id="urlFirst">http://...</div>
+                <button class="dugme kucuk" id="copyFirst">Kopyala</button>
               </div>
             </div>
           </div>
-        </section>
 
-        <section class="izgara-2">
-          <div class="kart">
-            <div class="kart-bas"><h2>Nasıl kurulur</h2></div>
-            <div class="kart-govde">
-              <ol class="adimlar">
-                <li><span><b>Telefonu bilgisayarla aynı Wi-Fi'a bağlayın.</b> Aynı ağ şart; misafir ağı çalıştırmayın.</span></li>
-                <li><span><b>Tarayıcı "güvenli değil" derse:</b> normal akışta bu <b>olmaz</b> — açılacak adres düz <b>http</b>'dir ve sertifika gerekmez. Yalnızca isteğe bağlı canlı önizleme için https kullanırsanız görürsünüz: iPhone'da <b>Gelişlik → Devam et</b>, Android'de aynı.</span></li>
-                <li><span><b>Yukarıdaki adresi telefonda açın.</b> Adres, anahtar ve eşleşme bilgisi otomatik dolar — hiçbir şey yazmanıza gerek yok. (QR'ı telefonun kendi kamerasıyla okutmak da aynı işi görür.)</span></li>
-                <li><span><b>Ana ekrana ekleyin.</b> iOS: Paylaş → Ana Ekrana Ekle. Android: ⋮ → Ana ekrana ekle. Artık bir uygulama gibi açılır.</span></li>
-                <li><span><b>Kayıt girmeye başlayın.</b> Her giriş saniyeler içinde Excel dosyasına düşer.</span></li>
-              </ol>
+          <div class="step-card">
+            <div class="step-header">
+              <div class="step-number">2</div>
+              <h2 class="step-title">Senkronu Başlat</h2>
+            </div>
+            <p class="step-desc">Telefonda "Senkron" butonuna bas, bu kodu okut</p>
+            
+            <div class="qr-container">
+              <div class="qr-display" id="qrToken">
+                <div class="loading">Yükleniyor...</div>
+              </div>
+              
+              <div class="url-display">
+                <div class="url-text" id="urlToken">Token bilgisi...</div>
+                <button class="dugme kucuk" id="copyToken">Kopyala</button>
+              </div>
             </div>
           </div>
+          
+        </div>
 
-          <div class="kart">
-            <div class="kart-bas"><h2>Bağlantı sağlanmıyorsa</h2></div>
-            <div class="kart-govde">
-              <ol class="adimlar">
-                <li><span><b>IP değişmiş olabilir.</b> Yukarıdaki adreslerden biri yazılı değilse bilgisayarın yeni IP'sini elle girin ya da router'dan statik IP atayın.</span></li>
-                <li><span><b>Güvenlik duvarı engelliyor olabilir.</b> Kurulum tamamlandığında Windows izni otomatik verilir. Vermediyse başlatıcı penceresindeki <b>"Windows iznini ver"</b> düğmesine basın — tek tık, yönetici şifresi istemez.</span></li>
-                <li><span><b>Farklı ağdasınız.</b> Kulüp misafir ağı yerine ana ağa bağlanın; ağlar arası aktarım genelde kapalıdır.</span></li>
-                <li><span><b>Servis durmuş olabilir.</b> Ayarlar sayfasındaki durum satırına bakın; servis kendini otomatik yeniden başlatır.</span></li>
-              </ol>
+        <div class="action-grid">
+          <button class="action-btn action-btn-primary" id="testBtn">
+            <span data-ikon="onay"></span>
+            <span>Bağlantıyı Test Et</span>
+          </button>
+          <button class="action-btn action-btn-secondary" id="refreshBtn">
+            <span data-ikon="yenile"></span>
+            <span>QR Kodları Yenile</span>
+          </button>
+        </div>
+
+        <div class="status-banner">
+          <div class="status-icon success" id="statusIcon">
+            <span data-ikon="wifi"></span>
+          </div>
+          <div class="status-text">
+            <div class="status-label">Sistem Durumu</div>
+            <div class="status-value" id="statusText">Kontrol ediliyor...</div>
+          </div>
+          <div class="status-badge-inline status-ok" id="statusBadge">Hazır</div>
+        </div>
+
+        <details class="help-section">
+          <summary class="help-header">
+            <span data-ikon="bilgi"></span>
+            <span class="help-title">Bağlantı Sorunu mu Yaşıyorsunuz?</span>
+            <span data-ikon="ok" class="arrow"></span>
+          </summary>
+          <div class="help-content">
+            <div class="help-grid">
+              <div class="help-item">
+                <div class="help-item-title">Aynı Wi-Fi Ağında mısınız?</div>
+                <p class="help-item-desc">Telefon ve bilgisayar aynı Wi-Fi ağına bağlı olmalı. Misafir ağı kullanmayın.</p>
+              </div>
+              <div class="help-item">
+                <div class="help-item-title">Güvenlik Duvarı</div>
+                <p class="help-item-desc">BASLATICI.bat'tan "Windows İznini Ver" butonuna basın. Yönetici şifresi gerekmez.</p>
+              </div>
+              <div class="help-item">
+                <div class="help-item-title">IP Değişti mi?</div>
+                <p class="help-item-desc">Bu sayfayı yenileyin (F5) ve yeni QR kodu telefondan okutun.</p>
+              </div>
+              <div class="help-item">
+                <div class="help-item-title">Sunucu Durdu mu?</div>
+                <p class="help-item-desc">BASLATICI.bat dosyasını çift tıklayarak sunucuyu tekrar başlatın.</p>
+              </div>
             </div>
           </div>
-        </section>
+        </details>
+
       </div>
 
       <footer class="alt-bilgi kabuk">
-        <span>Çınarköy Güvenlik · veriler bu bilgisayarda saklanır</span>
-        <span class="mono" id="adresBilgi"></span>
+        <span>Çınarköy Güvenlik · Tüm veriler yerel</span>
+        <span class="mono" id="footerAddr">-</span>
       </footer>
     </main>
   </div>
@@ -233,179 +507,100 @@
   <script>
   (function () {
     "use strict";
-    document.querySelectorAll("[data-ikon]").forEach(function (el) { el.innerHTML = CK.ikon(el.dataset.ikon); });
+    
+    document.querySelectorAll("[data-ikon]").forEach(el => el.innerHTML = CK.ikon(el.dataset.ikon));
 
-    var qr = document.getElementById("qr");
-    var adresler = document.getElementById("adresler");
-    var anahtar = document.getElementById("anahtar");
-    var mesaj = document.getElementById("mesaj");
-    var rozet = document.getElementById("durumRozet");
+    function updateStatus(text, isOk) {
+      document.getElementById('statusText').textContent = text;
+      const icon = document.getElementById('statusIcon');
+      const badge = document.getElementById('statusBadge');
+      
+      if (isOk) {
+        icon.className = 'status-icon success';
+        icon.innerHTML = CK.ikon('wifi');
+        badge.textContent = 'Çevrimiçi';
+        badge.className = 'status-badge-inline status-ok';
+      } else {
+        icon.className = 'status-icon error';
+        icon.innerHTML = CK.ikon('dikkat');
+        badge.textContent = 'Bağlantı Yok';
+        badge.className = 'status-badge-inline status-error';
+      }
+    }
 
-    function yukle() {
+    function loadData() {
       CK.istek("/eslesme")
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          // --- Telefonda açılacak adres (SERTİFİKA GEREKMEZ) ---
-          // Ölçülen karar: telefonun kendi kamerası (capture="environment")
-          // güvenli kaynak istemez. Bu yüzden BİRİNCİL adres http olur ve
-          // kullanıcı hiçbir ayar yapmaz. https yalnızca isteğe bağlı canlı
-          // önizleme içindir ve ayrı bir katlanmış bölümde durur.
-          var kutu = document.getElementById("telefonKutusu");
-          var tAdres = document.getElementById("telefonAdres");
-          var tAc = document.getElementById("telefonAc");
-          var tKopya = document.getElementById("telefonKopya");
-          var kameraRozet = document.getElementById("kameraRozet");
-          var hAdres = document.getElementById("httpsAdres");
-          var hAc = document.getElementById("httpsAc");
-          var kokDurum = document.getElementById("kokDurum");
-
-          // Sunucu kalıcı adresi AÇIKÇA bildiriyor (qrAdres). Önce onu kullan;
-          // yoksa ilk http adayı. Tahmin (hostname) YAPILMAZ — ölçüldü ki
-          // bilgisayar adı çoğu ağda çözülmüyor ve kullanıcıyı boş ekrana düşürür.
-          var adaylar = d.adaylar || [];
-          var t = d.kaliciAdres || d.qrAdres || "";
-          if (!t) t = adaylar.filter(function (u) { return u.indexOf("http://") === 0; })[0] || "";
-
-          if (t) {
-            kutu.style.display = "";
-            tAdres.textContent = t;
-            tAc.href = t + "/telefon/";
-            CK.doldur("#telefonKopya", "");
-            tKopya.appendChild(CK.kopyaDugmesi(t));
-            // Rozet artık bir SERTIFIKA durumu bildirmez; kamera her adreste
-            // çalışır. Yanlış bilgi vermemek için nötr ve doğru metin.
-            kameraRozet.textContent = "Kamera açılabilir — sertifika gerekmez";
-            kameraRozet.style.color = "var(--ok)";
-            kameraRozet.style.borderColor = "var(--ok)";
-          } else {
-            // Adres yoksa kullanıcı yanlış yere gitmesin, sebebiyle birlikte.
-            kutu.style.display = "";
-            tAdres.textContent = "Adres bulunamadı";
-            tAc.style.display = "none";
-            kameraRozet.textContent = "Bilgisayarın ağ bağlantısını kontrol edin";
-            kameraRozet.style.color = "var(--warn)";
-            kameraRozet.style.borderColor = "var(--warn)";
-          }
-
-          // --- Tek seferlik kök CA kurulumu (isteğe bağlı) ---
-          //
-          // Ölçülen sunucu tarafı: doğrulama açık TLS istekleri %100 geçti
-          // (tests/ara/https-gercek.js). Yani CA kurulduğu an https çalışır.
-          // Eksik olan tek şey: telefonun bu köke güvenmesi.
-          //
-          // Dosyayı telefona taşımak (e-posta/WhatsApp) yerine QR kullanılır:
-          // kurulum 1-2 adıma iner. Sunucu QR'ı çevrimdışı üretir.
-          var kokCaAdres = d.kokCaAdres || "";
-          var kokKutu = document.getElementById("kokCaAdres");
-          var kokQr = document.getElementById("kokQr");
-          if (kokCaAdres && kokKutu) {
-            kokKutu.textContent = kokCaAdres;
-            var kokIndirDugme = document.getElementById("kokIndir");
-            if (kokIndirDugme) kokIndirDugme.href = kokCaAdres;
-          }
-          if (kokQr) {
-            if (d.qrKokSvg) {
-              kokQr.innerHTML = d.qrKokSvg;
-              var svg = kokQr.querySelector("svg");
-              if (svg) { svg.setAttribute("width", "100%"); svg.setAttribute("height", "100%"); }
-            } else {
-              // QR üretilemezse boş kutu BIRAKMA: adres elle yazılabilir.
-              kokQr.innerHTML = '<span style="font-size:.72rem;color:#555;padding:8px;text-align:center">' +
-                'QR üretilemedi' + (d.qrKokHata ? ('<br>' + String(d.qrKokHata).substring(0, 60)) : '') +
-                '</span>';
-            }
-          }
-
-          // --- Canlı önizleme adresi (https) ---
-          var h = d.httpsAdres || "";
-          if (h && hAdres) {
-            hAdres.textContent = h;
-            hAc.href = h + "/telefon/";
-          }
-          if (kokDurum) {
-            // Sertifika doğrulaması sunucuda yapıldı; burada yalnızca
-            // DURUM yazılır. Doğrulanmamış bir şey yazılmaz (rehber kuralı).
-            var dogrulandi = !!(d.https && d.https.dogrulandi);
-            kokDurum.textContent = dogrulandi
-              ? "Sunucu tarafı doğrulandı (sertifika zinciri, alan adı ve imza geçerli). "
-                + "Telefonun güveniyorsa uygulama otomatik olarak https'e geçer."
-              : "Sunucu sertifikası henüz doğrulanmadı — canlı önizleme kullanılamaz. "
-                + "Plaka okuma yine de çalışır (telefonun kendi kamerası).";
-            if (d.qrKokHata) kokDurum.textContent += " · CA kodu üretilemedi: " + d.qrKokHata;
-            if (d.qrHata) kokDurum.textContent += " · Adres kodu üretilemedi: " + d.qrHata;
-          }
-
-          // --- API anahtarı (web sitesine bağlamak için) ---
-          //
-          // Kullanıcı isteği: anahtar panelde görünmeli ki Vercel/GitHub
-          // ayarlarına yapıştırılabilsin. Uç anahtarla korunur; panel zaten
-          // yalnızca bu bilgisayardan açılabilir.
-          CK.istek("/eslesme/anahtar")
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (a) {
-              var kutu = document.getElementById("anahtarKutu");
-              var alan = document.getElementById("anahtarDeger");
-              if (!kutu || !alan || !a || !a.anahtar) return;
-              kutu.style.display = "";
-              alan.textContent = a.anahtar;
-              CK.doldur("#anahtarKopya", "");
-              document.getElementById("anahtarKopya").appendChild(CK.kopyaDugmesi(a.anahtar));
-              var bilgi = document.getElementById("anahtarBilgi");
-              if (bilgi) {
-                bilgi.textContent =
-                  "Kaynak: " + a.kaynak + " · Başlık: " + a.baslikAdi
-                  + " · Biçim: " + a.bicim
-                  + " · Vercel değişkeni: " + a.ortamDegiskeni;
-              }
-            })
-            .catch(function () { /* kutu gizli kalır; sessiz hata gösterilmez */ });
-
-          // QR üretilemezse boş kutu BIRAKMA (sessiz boşluk olmasın).
+        .then(r => r.json())
+        .then(d => {
+          const qrFirst = document.getElementById('qrFirst');
           if (d.qrSvg) {
-            qr.innerHTML = d.qrSvg;
-            qr.parentElement.style.display = "";
+            qrFirst.innerHTML = d.qrSvg;
+            const svg = qrFirst.querySelector('svg');
+            if (svg) {
+              svg.setAttribute('width', '168');
+              svg.setAttribute('height', '168');
+            }
           } else {
-            qr.innerHTML = '<div class="bekle" style="padding:16px;line-height:1.6">'
-              + 'QR üretilemedi' + (d.qrHata ? ('<br><span style="font-size:.75rem;opacity:.8">' + d.qrHata + '</span>') : '')
-              + '<br><span style="font-size:.75rem;opacity:.8">Yukarıdaki adresi elle yazabilirsiniz.</span></div>';
-            qr.parentElement.style.display = "";
+            qrFirst.innerHTML = '<div class="loading">QR oluşturulamadı</div>';
           }
-          adresler.innerHTML = "";
-          var liste = d.adresler && d.adresler.length ? d.adresler : ["http://localhost:4545"];
-          liste.forEach(function (u) {
-            var s = document.createElement("div");
-            s.className = "adres";
-            var kod = document.createElement("code");
-            kod.textContent = u;
-            s.appendChild(kod);
-            s.appendChild(CK.kopyaDugmesi(u));
-            adresler.appendChild(s);
-          });
-          document.getElementById("adresBilgi").textContent = liste[0];
-          anahtar.textContent = d.token;
-          CK.doldur("#anahtarKopya", "");
-          document.getElementById("anahtarKopya").appendChild(CK.kopyaDugmesi(d.token, "Kopyala"));
-          rozet.textContent = liste.length + " adres";
+          
+          const qrToken = document.getElementById('qrToken');
+          if (d.qrSvgToken) {
+            qrToken.innerHTML = d.qrSvgToken;
+            const svg = qrToken.querySelector('svg');
+            if (svg) {
+              svg.setAttribute('width', '168');
+              svg.setAttribute('height', '168');
+            }
+          } else {
+            qrToken.innerHTML = '<div class="loading">Token QR oluşturulamadı</div>';
+          }
+          
+          const url1 = d.qrIlk || (d.kaliciAdres + '/telefon/') || '-';
+          const url2 = d.qrTam || '-';
+          document.getElementById('urlFirst').textContent = url1;
+          document.getElementById('urlToken').textContent = url2;
+          document.getElementById('footerAddr').textContent = d.kaliciAdres || '-';
+          
+          const adresCount = (d.adresler && d.adresler.length) || 0;
+          updateStatus(`${adresCount} ağ adresi bulundu`, adresCount > 0);
         })
-        .catch(function () {
-          mesaj.textContent = "Eşleşme bilgisi alınamadı. Servis yeniden başlatılıyor olabilir.";
-          rozet.textContent = "Bağlantı yok";
+        .catch(() => {
+          updateStatus('Sunucuya bağlanılamıyor', false);
         });
     }
 
-    document.getElementById("yenile").addEventListener("click", function () { yukle(); CK.bildir("Eşleşme bilgisi yenilendi", "olumlu"); });
-    document.getElementById("baglantiDene").addEventListener("click", function () {
-      mesaj.textContent = "Sınanıyor…";
-      CK.istek("/saglik")
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          mesaj.textContent = "Bağlantı sağlam. Sunucuda " + d.kayitSayisi + " kayıt var.";
-          mesaj.style.color = "var(--ok)";
-        })
-        .catch(function () { mesaj.textContent = "Servise ulaşılamıyor."; mesaj.style.color = "var(--danger)"; });
+    document.getElementById('copyFirst').addEventListener('click', () => {
+      const text = document.getElementById('urlFirst').textContent;
+      navigator.clipboard.writeText(text).then(() => CK.bildir('URL kopyalandı', 'olumlu'));
+    });
+    
+    document.getElementById('copyToken').addEventListener('click', () => {
+      const text = document.getElementById('urlToken').textContent;
+      navigator.clipboard.writeText(text).then(() => CK.bildir('Token URL kopyalandı', 'olumlu'));
     });
 
-    yukle();
+    document.getElementById('testBtn').addEventListener('click', () => {
+      updateStatus('Test ediliyor...', true);
+      CK.istek('/saglik')
+        .then(r => r.json())
+        .then(d => {
+          updateStatus(`Bağlantı başarılı · ${d.kayitSayisi} kayıt mevcut`, true);
+          CK.bildir('Bağlantı testi başarılı', 'olumlu');
+        })
+        .catch(() => {
+          updateStatus('Bağlantı testi başarısız', false);
+          CK.bildir('Sunucuya ulaşılamadı', 'hatali');
+        });
+    });
+
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+      loadData();
+      CK.bildir('Sayfa yenilendi', 'olumlu');
+    });
+
+    loadData();
+    setInterval(loadData, 60000);
   })();
   </script>
 </body>

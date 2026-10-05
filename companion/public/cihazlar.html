@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="tr" data-tema="koyu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Cihaz Yönetimi · Çınarköy Sync</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    .cihaz-kart {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+    
+    .cihaz-kart:hover {
+      border-color: var(--accent-line);
+      background: var(--surface);
+    }
+    
+    .cihaz-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    
+    .cihaz-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    
+    .cihaz-icon svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .cihaz-icon.bekliyor {
+      background: rgba(251, 191, 36, 0.15);
+      color: var(--warn);
+    }
+    
+    .cihaz-icon.onaylanmis {
+      background: rgba(74, 222, 128, 0.15);
+      color: var(--ok);
+    }
+    
+    .cihaz-bilgi {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .cihaz-ip {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    
+    .cihaz-detay {
+      font-size: 0.78rem;
+      color: var(--text-3);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    
+    .cihaz-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    
+    .bos-durum {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-3);
+    }
+    
+    .bos-durum svg {
+      width: 48px;
+      height: 48px;
+      opacity: 0.3;
+      margin-bottom: 12px;
+    }
+    
+    .bos-durum p {
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="gosterge">
+    <header class="ust">
+      <div class="ic">
+        <div class="marka">
+          <div class="marka-logo">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="7"/></svg>
+          </div>
+          <div class="marka-yazi"><b>Cihaz Yönetimi</b><span>Telefon bağlantı izinleri</span></div>
+        </div>
+        <nav class="gezinme">
+          <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
+          <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/eslesme.html"><span data-ikon="esle"></span><span>Eşleşme</span></a>
+          <a href="/cihazlar.html" class="aktif"><span data-ikon="wifi"></span><span>Cihazlar</span></a>
+          <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
+        </nav>
+      </div>
+    </header>
+
+    <main class="ana">
+      <div class="kabuk">
+        <section class="kart">
+          <div class="kart-bas">
+            <h2>Onay Bekleyen Cihazlar</h2>
+            <span class="rozet" id="bekleyenSayac">0</span>
+          </div>
+          <div class="kart-govde">
+            <p class="muted" style="font-size:0.88rem;margin-bottom:16px;line-height:1.5">
+              İlk telefon otomatik kabul edilir. Sonraki telefonlar bu listede görünür ve onayınızı bekler.
+            </p>
+            <div id="bekleyenListe"></div>
+            <div id="bekleyenBos" class="bos-durum" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <p>Onay bekleyen cihaz yok</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="kart">
+          <div class="kart-bas">
+            <h2>Kayıtlı Cihazlar</h2>
+            <span class="rozet" id="kayitliSayac">0</span>
+          </div>
+          <div class="kart-govde">
+            <p class="muted" style="font-size:0.88rem;margin-bottom:16px;line-height:1.5">
+              Bu cihazlar sisteme kayıt gönderebilir. Kullanılmayan cihazları kaldırabilirsiniz.
+            </p>
+            <div id="kayitliListe"></div>
+            <div id="kayitliBos" class="bos-durum" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+              </svg>
+              <p>Henüz hiç cihaz kaydedilmedi</p>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+  (function () {
+    "use strict";
+    document.querySelectorAll("[data-ikon]").forEach(function (el) { el.innerHTML = CK.ikon(el.dataset.ikon); });
+
+    function yukle() {
+      CK.istek("/eslesme/cihazlar")
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var bekleyen = d.onayBekleyen || [];
+          var kayitli = d.cihazlar || [];
+
+          var bekleyenSayac = document.getElementById("bekleyenSayac");
+          var bekleyenListe = document.getElementById("bekleyenListe");
+          var bekleyenBos = document.getElementById("bekleyenBos");
+
+          bekleyenSayac.textContent = bekleyen.length;
+          
+          if (bekleyen.length === 0) {
+            bekleyenListe.innerHTML = "";
+            bekleyenBos.style.display = "block";
+          } else {
+            bekleyenBos.style.display = "none";
+            bekleyenListe.innerHTML = bekleyen.map(function(c) {
+              return '<div class="cihaz-kart">' +
+                '<div class="cihaz-header">' +
+                  '<div class="cihaz-icon bekliyor">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>' +
+                  '</div>' +
+                  '<div class="cihaz-bilgi">' +
+                    '<div class="cihaz-ip">' + CK.kacis(c.ip) + '</div>' +
+                    '<div class="cihaz-detay">' +
+                      '<span>İstek: ' + new Date(c.istendi).toLocaleString('tr-TR', {dateStyle: 'short', timeStyle: 'short'}) + '</span>' +
+                      (c.kimlik ? '<span>Kimlik: ' + CK.kacis(c.kimlik.substring(0, 12)) + '...</span>' : '') +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="cihaz-actions">' +
+                    '<button class="dugme kucuk onay-btn" data-ip="' + CK.kacis(c.ip) + '">' +
+                      '<span data-ikon="onay"></span><span>Onayla</span>' +
+                    '</button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+
+            bekleyenListe.querySelectorAll('[data-ikon]').forEach(function(el) {
+              el.innerHTML = CK.ikon(el.dataset.ikon);
+            });
+
+            bekleyenListe.querySelectorAll('.onay-btn').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                onayla(this.dataset.ip);
+              });
+            });
+          }
+
+          var kayitliSayac = document.getElementById("kayitliSayac");
+          var kayitliListe = document.getElementById("kayitliListe");
+          var kayitliBos = document.getElementById("kayitliBos");
+
+          kayitliSayac.textContent = kayitli.length;
+
+          if (kayitli.length === 0) {
+            kayitliListe.innerHTML = "";
+            kayitliBos.style.display = "block";
+          } else {
+            kayitliBos.style.display = "none";
+            kayitliListe.innerHTML = kayitli.map(function(c) {
+              return '<div class="cihaz-kart">' +
+                '<div class="cihaz-header">' +
+                  '<div class="cihaz-icon onaylanmis">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>' +
+                  '</div>' +
+                  '<div class="cihaz-bilgi">' +
+                    '<div class="cihaz-ip">' + CK.kacis(c.ip) + '</div>' +
+                    '<div class="cihaz-detay">' +
+                      '<span>İlk: ' + new Date(c.ilk).toLocaleString('tr-TR', {dateStyle: 'short', timeStyle: 'short'}) + '</span>' +
+                      '<span>Son: ' + new Date(c.son).toLocaleString('tr-TR', {dateStyle: 'short', timeStyle: 'short'}) + '</span>' +
+                      (c.kimlik ? '<span>Kimlik: ' + CK.kacis(c.kimlik.substring(0, 12)) + '...</span>' : '') +
+                    '</div>' +
+                  '</div>' +
+                  '<div class="cihaz-actions">' +
+                    '<button class="dugme sade kucuk kaldir-btn" data-ip="' + CK.kacis(c.ip) + '">' +
+                      '<span data-ikon="kapat"></span><span>Kaldır</span>' +
+                    '</button>' +
+                  '</div>' +
+                '</div>' +
+              '</div>';
+            }).join('');
+
+            kayitliListe.querySelectorAll('[data-ikon]').forEach(function(el) {
+              el.innerHTML = CK.ikon(el.dataset.ikon);
+            });
+
+            kayitliListe.querySelectorAll('.kaldir-btn').forEach(function(btn) {
+              btn.addEventListener('click', function() {
+                if (confirm(this.dataset.ip + ' adresli cihazı kaldırmak istediğinizden emin misiniz?')) {
+                  kaldir(this.dataset.ip);
+                }
+              });
+            });
+          }
+        })
+        .catch(function(e) {
+          CK.bildir("Cihaz listesi yüklenemedi", "hatali");
+        });
+    }
+
+    function onayla(ip) {
+      CK.istek("/eslesme/onay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: ip })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.ok) {
+            CK.bildir(ip + " onaylandı", "olumlu");
+            yukle();
+          } else {
+            CK.bildir("Hata: " + d.error, "hatali");
+          }
+        })
+        .catch(function(e) {
+          CK.bildir("Onay başarısız", "hatali");
+        });
+    }
+
+    function kaldir(ip) {
+      CK.istek("/eslesme/kaldir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ip: ip })
+      })
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          if (d.ok) {
+            CK.bildir(ip + " kaldırıldı", "olumlu");
+            yukle();
+          } else {
+            CK.bildir("Hata: " + d.error, "hatali");
+          }
+        })
+        .catch(function(e) {
+          CK.bildir("Kaldırma başarısız", "hatali");
+        });
+    }
+
+    yukle();
+    setInterval(yukle, 10000);
+  })();
+  </script>
+</body>
+</html>

@@ -117,6 +117,12 @@ function kutuTaramasi(tampon) {
   if (!a) return [];
   const gri = a.gri, w = a.w, h = a.h;
   const cik = [];
+  // ON ELEME: her kutu OCR-ye GONDERILMEZ. Once kenar yogunlugu olculur
+  // (~1 ms), yalnizca EN YOGUN adet kadar kutu denenir. Olculen gerekce:
+  // 45 kutunun tamami OCR-ye gidiyordu ve plaka6.jpeg 10,9 sn suruyordu.
+  const EN_COK = 12;
+  const aday = [];
+  const cx = w / 2, cy = h / 2;
   // 2 ve 3 sütun/satır: küçük plaka (2) ile büyük plaka (3) birlikte.
   const izgaralar = [[2, 2], [3, 3]];
   const ORTUSME = 0.34;   // %34 örtüşme: plaka kutudan taşmasın
@@ -137,15 +143,62 @@ function kutuTaramasi(tampon) {
           if (!k) continue;
           // Çok küçük kutuyu atla (okunamaz), çok büyüğü de atla (yararı yok)
           if (k.w < 120 || k.h < 40) continue;
-          cik.push({
+          // KIRP + 96 px KUCULT: kanitlanan bicim (olculdu). Tam boyutta
+          // gonderilen kutular 9 fotografin hicbirinde okunmadi.
+          const kb = kutuBuyut(k);
+          if (!kb || kb.w < 60) continue;
+          aday.push({
+            yo: kenarYogunlugu(gri, w, h, x, y, k.w, k.h),
+            uzak: Math.hypot(kb.w / 2 + x - cx, kb.h / 2 + y - cy),
+            kb: kb,
             ad: 'kutu' + sx + 'x' + sy + '-o' + Math.round(ol * 100),
-            tampon: png(k.gri, k.w, k.h),
           });
         }
       }
     }
   }
+  // En yogun kutular once; esit yogunlukta merkeze yakin olan once.
+  aday.sort((a, b) => (b.yo - a.yo) || (a.uzak - b.uzak));
+  for (let i = 0; i < aday.length && cik.length < EN_COK; i++) {
+    const t = png(aday[i].kb.gri, aday[i].kb.w, aday[i].kb.h);
+    if (t) cik.push({ ad: aday[i].ad, tampon: t });
+  }
   return cik;
+}
+
+// Kanitlanan kirpma yuksekligi (29.09.2026): 500x369 -> 130x96 ve
+// 387x284 -> 131x96 ikisi de 96 px ile DOGRU okundu.
+const KUTU_YUKSEKLIK = 96;
+
+/** Bir kutunun kenar yogunlugu (~1 ms). Bos duvar dusuk, plaka yuksek. */
+function kenarYogunlugu(gri, w, h, x, y, kw, kh) {
+  try {
+    var toplam = 0, sayi = 0;
+    var adim = Math.max(1, Math.floor(kw / 60));
+    for (var j = 1; j < kh - 1; j += adim) {
+      var satir = (y + j) * w + x;
+      for (var i = 1; i < kw - 1; i += adim) {
+        var o = satir + i;
+        var gx = gri[o + 1] - gri[o - 1];
+        var gy = gri[o + w] - gri[o - w];
+        var m = gx < 0 ? -gx : gx;
+        var n2 = gy < 0 ? -gy : gy;
+        toplam += (m > n2 ? m : n2);
+        sayi++;
+      }
+    }
+    if (!sayi) return 0;
+    return toplam / sayi / 255;
+  } catch (e) { return 0; }
+}
+
+/** Kirpilan kutuyu KANITLANAN yukseklige (96 px) kucultur. */
+function kutuBuyut(k) {
+  try {
+    if (!k || k.h === KUTU_YUKSEKLIK) return k;
+    const ng = Math.max(16, Math.round(k.w * KUTU_YUKSEKLIK / k.h));
+    return { gri: G.olcekle(k.gri, k.w, k.h, ng, KUTU_YUKSEKLIK), w: ng, h: KUTU_YUKSEKLIK };
+  } catch (e) { return k; }
 }
 
 function ters(gri) {

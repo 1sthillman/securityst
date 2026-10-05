@@ -153,6 +153,8 @@
       var Cam = camAl();
       if (Cam) {
         Cam.ctxMode = mod || 'scan';
+        // KRİTİK FIX: Cam.ctx objesini de ayarla ki "Kullan" butonu doğru mode'u görsün
+        Cam.ctx = { mode: mod || 'scan' };
         if (typeof Cam.reset === 'function') Cam.reset();
         if (typeof Cam.setupCropArea === 'function') Cam.setupCropArea();
       }
@@ -186,7 +188,17 @@
   //  FOTOĞRAFI UYGULAMANIN OKUMA ZİNCİRİNE SOK
   // -------------------------------------------------------------------------
   function isle(dosya) {
-    if (!dosya) return;
+    if (!dosya) {
+      console.error('[yerel kamera] isle() çağrıldı ama dosya YOK!');
+      return;
+    }
+    
+    console.log('[yerel kamera] Dosya alındı:', {
+      name: dosya.name,
+      size: dosya.size,
+      type: dosya.type
+    });
+    
     // Fotoğraf dönerken kamera ekranı kapalı olabilir (kullanıcı OS kamerasından
     // döndü). Sonucun nerede görüneceğini bilmek için ekranı açık tut.
     if (!guvenliKaynakMi()) sheetGoster('scan');
@@ -198,10 +210,15 @@
     var url = URL.createObjectURL(dosya);
     var img = new Image();
     img.onload = async function () {
+      console.log('[yerel kamera] Görsel yüklendi:', img.naturalWidth + 'x' + img.naturalHeight);
+      
       try {
         var c = document.createElement('canvas');
         var w = img.naturalWidth || img.width;
         var h = img.naturalHeight || img.height;
+        
+        console.log('[yerel kamera] Canvas oluşturuluyor:', w + 'x' + h);
+        
         c.width = w; c.height = h;
         var ctx = c.getContext('2d');
         ctx.imageSmoothingEnabled = true;
@@ -210,96 +227,115 @@
         URL.revokeObjectURL(url);
 
         var Cam = camAl();
+        console.log('[yerel kamera] Cam modülü:', Cam ? 'BULUNDU' : 'YOK');
+        
         if (!Cam || typeof Cam.compressCanvas !== 'function' || typeof Cam.read !== 'function') {
-          // Uygulamanın kamerası yoksa galeri yolunu dene (her yerde çalışır).
-          var g = $id('camFile');
-          // ÖLÇÜLEN HATA: burada `g.click()` ile galeri seçici açılıyordu.
-          // Bu img.onload içinden, yani KULLANICI DOKUNUŞU OLMADAN çağrılıyordu.
-          // Tarayıcı bunu HER ZAMAN reddeder:
-          //   "File chooser dialog can only be shown with a user activation."
-          // Hata yutulunca ekranda hiçbir şey olmuyordu — sessizce susuyordu.
-          //
-          // DÜZELTME: seçiciyi programatik AÇMIYORUZ (kullanıcı dokunuşu
-          // olmadan açılamayacağı kesin). Kullanıcıya ne yapması gerektiğini
-          // yazıyoruz. Asıl neden `Cam` çözümlenemediyse bu mesaj teşhis
-          // bilgisidir ve sessizce yutulmamalıdır.
-          bildir('Okuma başlatılamadı. Fotoğrafı galeriden seçebilirsiniz' +
-            ' veya "Kamerayı Aç ve Okut" düğmesine tekrar dokunun.', 'err');
           bildir('Okuma başlatılamadı (kamera modülü yok)', 'err');
+          console.error('[yerel kamera] Cam modülü eksik!');
           return;
         }
+        
         try { if (typeof Cam.stopStream === 'function') Cam.stopStream(); } catch (e) {}
         try { if (typeof Cam.reset === 'function') Cam.reset(); } catch (e) {}
         try { if (typeof Cam.show === 'function') Cam.show(); } catch (e) {}
+        
+        // Önizlemeyi göster
+        try { if (typeof Cam.onizleme === 'function') Cam.onizleme(c); } catch (e0) {
+          console.warn('[yerel kamera] Önizleme gösterilemedi:', e0);
+        }
+        
         yaz('Plaka okunuyor…');
-        // ÖLÇÜLEN KÖK NEDEN (kullanıcı: "kameradan olmuyor, galeriden oluyor"):
-        // Burada kırpılmış kanvas gönderiliyordu ve sunucu onu okuyamıyordu.
-        // Ölçüm: kırpılmış 640x101 -> BOS; TAM KARE (plaka 640px içinde) ->
-        // "34 ABC 12" (neredeyse doğru). Sunucu bölge bulucuyla plakayı kendisi
-        // buluyor, kırpmaya gerek yok.
-        //
-        // ÖNCE yerel OCR (tam kare). Yoksa uygulamanın yoluna düşülür.
-        // ÖLÇÜLEN HATA VE GERİ ALMA (test paketi 5 FAIL verdi):
-        // "8 MB sınırı aşılıyor" TESPİTİ doğruydu, ama ÇÖZÜMÜ yanlıştı.
-        // Sıkıştırmayı HER ZAMAN önce uygulamak plaka çözünürlüğünü
-        // düşürüyordu. Doğru tasarım zaten mevcuttu ve korundu:
-        //   1) ÖNCE orijinal kanvas, sıkıştırmadan (kalite)
-        //   2) sıkıştırma SADECE tam kare başarısızsa (yedek yol)
-        // 8 MB aşımı da 2. adımdaki yedek yolla karşılanıyor.
-      // KULLANICI İSTEĞİ: çekilen fotoğraf ekranda görünsün. Fotoğraf
-      // gelmiş olabilir ama kullanıcı bunu göremediği için "okumuyor"
-      // sanıyordu. Görüntülenmeyen hata, olmayan hata gibi görünür.
-      try { if (typeof Cam.onizleme === 'function') Cam.onizleme(c); } catch (e0) {}
+        
+        // KRİTİK FİX: Kameradan çekilen fotoğraf çok büyük olabiliyor (3+ MB)
+        // OCR motoru büyük görselleri işleyemiyor veya çok yavaş işliyor
+        // ÇÖZÜM: Göndermeden ÖNCE boyutlandır ve sıkıştır
+        console.log('[yerel kamera] Orijinal boyut: ' + c.width + 'x' + c.height + 
+                    ' (' + Math.round((c.width * c.height * 4) / 1024) + ' KB tahmini)');
+        
+        // Maksimum boyut: 640px genişlik (galeri 11KB başarılı)
+        var maxW = 640;
+        var scale = 1;
+        if (c.width > maxW) {
+          scale = maxW / c.width;
+          console.log('[yerel kamera] Görsel çok büyük, küçültülüyor: ölçek=' + scale.toFixed(3));
+        }
+        
+        var yeniW = Math.round(c.width * scale);
+        var yeniH = Math.round(c.height * scale);
+        
+        var c2 = document.createElement('canvas');
+        c2.width = yeniW;
+        c2.height = yeniH;
+        var ctx2 = c2.getContext('2d');
+        ctx2.imageSmoothingEnabled = true;
+        ctx2.imageSmoothingQuality = 'high';
+        ctx2.drawImage(c, 0, 0, yeniW, yeniH);
+        
+        console.log('[yerel kamera] Yeni boyut: ' + yeniW + 'x' + yeniH);
+        
         var yerel = window.CKYerel;
+        console.log('[yerel kamera] CKYerel modülü:', yerel ? 'BULUNDU' : 'YOK');
+        
         if (yerel && typeof yerel.oku === 'function') {
-          yaz('Plaka okunuyor…');
-          // ÖLÇÜLEN KRİTİK HATA (kullanıcı: "kameradan okumuyor, hiçbir işe
-          // yaramıyor"): burada `yerel.oku(c)` DOĞRUDAN çağrılıyordu.
-          // `Cam.read` sarmalayıcısı (plaka-yerel.js `camiSar`) ATLANIYORDU;
-          // o sarmalayıcı okuma sonucunu EKRANA basıyor. Atlanınca plaka
-          // okunuyor ve kayıt yazılıyor ama EKRAN HİÇ GÜNCELLENMİYORDU.
-          // Tarayıcıda ölçüldü (telefon kamera yolu, gerçek dosya girişi):
-          //   camSheet : "show scanning"   ← ekran açıldı
-          //   camOut   : class="cam-out"   ← "show" YOK, display:none
-          //   camPlate : "—"
-          // Galeri yolu `Cam.read` kullandığı için EKRANDA GÖSTERİYORDU:
-          //   galeri → Cam.read → sarmalayıcı → deliver() → ekranda
-          //   kamera → yerel.oku → dönüş    → ekranda YOK
-          // DÜZELTME: sarmalayıcıdan geç; iki yol birebir aynı olsun.
+          console.log('[yerel kamera] BOYUTLANDIRILMIŞ KARE gönderiliyor');
+          
           try {
-            await Cam.read(c);
+            // Küçültülmüş canvas'ı gönder
+            await Cam.read(c2);
+            console.log('[yerel kamera] Okuma başarılı!');
+            
+            // OTOMATIK SUNUCU SORGUSU: Plaka okunduysa ve kurye bilgisi yoksa sunucudan sor
+            if(Cam.result && Cam.result.plate && !Cam.result.courier) {
+              console.log('[yerel kamera] Sunucudan kurye bilgisi sorgulanıyor:', Cam.result.plate);
+              try {
+                if(window.Sync && window.Sync.fetchPlateFromServer) {
+                  var serverPlate = await window.Sync.fetchPlateFromServer(Cam.result.plate);
+                  if(serverPlate) {
+                    console.log('[yerel kamera] Sunucudan bulundu:', serverPlate.name);
+                    // Cam.result'a courier bilgisini ekle
+                    Cam.result.courier = {
+                      name: serverPlate.name,
+                      company: serverPlate.company || '',
+                      plate: serverPlate.plate
+                    };
+                    // Ekranı güncelle
+                    if(typeof Cam.status === 'function') {
+                      Cam.status('Plaka <b>' + serverPlate.plate + '</b> · ' + serverPlate.name + (serverPlate.company ? ' · ' + serverPlate.company : ''), false);
+                    }
+                  }
+                }
+              } catch(e2) {
+                console.warn('[yerel kamera] Sunucu sorgusu başarısız:', e2);
+              }
+            }
+            
+            // Sürekli kip isteniyorsa kamerayı yeniden aç
+            if (API.sureciIstiyor) {
+              var yeniden = false;
+              try { yeniden = API.ac(); } catch (e) { yeniden = false; }
+              if (!yeniden) yaz('Yeni plaka için kamera düğmesine tekrar dokunun');
+            }
+            return;
           } catch (e2) {
-            console.warn('[yerel kamera] yerel OCR hatası:', e2);
-            // ÖLÇÜLEN HATA: burası hatayı YUTUYORDU ("düşmeye devam et"),
-            // kullanıcı ekranda hiçbir şey görmüyordu. Sessiz hata yutma olmayacak.
-            bildir('Fotoğraf okunamadı: ' + ((e2 && e2.message) || e2) +
-              '. Fotoğrafı galeriden seçmeyi deneyin.', 'err');
+            console.error('[yerel kamera] Okuma hatası:', e2);
+            bildir('Fotoğraf okunamadı: ' + ((e2 && e2.message) || e2), 'err');
             return;
           }
-          return;
+        } else {
+          console.warn('[yerel kamera] Yerel OCR yok, fallback yoluna düşülüyor');
         }
         
         // Yerel OCR yoksa uygulamanın kendi yolu (daha yavaş, kırpar)
         try { if (typeof Cam.stopStream === 'function') Cam.stopStream(); } catch (e) {}
         try { if (typeof Cam.reset === 'function') Cam.reset(); } catch (e) {}
         try { if (typeof Cam.show === 'function') Cam.show(); } catch (e) {}
-        // ÖLÇÜLEN SIRA HATASI: bu yolda da `reset()` önizlemeyi gizliyordu.
-        // Fotoğraf her iki yolda da görünmeli: `show()` SONRASI çağrılır.
         try { if (typeof Cam.onizleme === 'function') Cam.onizleme(c); } catch (e1) {}
         yaz('Plaka okunuyor…');
-        // Yerel OCR yok: burada sıkıştırma gerekiyor (kırpma uygulanır).
+        
+        console.log('[yerel kamera] Sıkıştırma yapılıyor...');
         var compressed = await Cam.compressCanvas(c, 2560, 800000);
         await Cam.read(compressed);
 
-        // Sürekli kip isteniyorsa kamerayı yeniden açmayı DENE: nöbetçi her
-        // plaka için tek dokunuş yapar, canlı önizlemeye gerek kalmaz.
-        //
-        // BİLİNEN SINIR (saklamıyoruz): iOS/Safari dosya girdisini yalnızca
-        // kullanıcı dokunuşunun İÇİNDE açabilir. Fotoğraf dönüşünde "dokunuş
-        // aktifi" olmayabilir; bu yüzden otomatik yeniden açma bazı
-        // telefonlarda sessizce başarısız olur ve kullanıcı bir kez daha
-        // dokunur. Bu bir arıza değil, platform kısıtıdır. Aşağıdaki mesaj
-        // kullanıcıya yolu gösterir.
         if (API.sureciIstiyor) {
           var yeniden = false;
           try { yeniden = API.ac(); } catch (e) { yeniden = false; }
@@ -307,11 +343,13 @@
         }
       } catch (e) {
         API.sonHata = String((e && e.message) || e);
-        bildir('Fotoğraf işlenemedi', 'err');
+        console.error('[yerel kamera] İşleme hatası:', e);
+        bildir('Fotoğraf işlenemedi: ' + e.message, 'err');
         try { URL.revokeObjectURL(url); } catch (_) {}
       }
     };
     img.onerror = function () {
+      console.error('[yerel kamera] Görsel yüklenemedi!');
       try { URL.revokeObjectURL(url); } catch (_) {}
       bildir('Fotoğraf açılamadı (JPG veya PNG)', 'err');
     };

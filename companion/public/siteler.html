@@ -1,0 +1,938 @@
+<!doctype html>
+<html lang="tr" data-tema="koyu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0a0e0c" />
+  <title>Site & Blok Yönetimi · Çınarköy Sync</title>
+  <link rel="stylesheet" href="assets/theme.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><circle cx='12' cy='12' r='9' fill='none' stroke='%23ffb057' stroke-width='2'/></svg>" />
+  <style>
+    .site-grid {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      gap: 20px;
+      height: calc(100vh - 140px);
+    }
+    
+    .site-list {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 16px;
+      overflow-y: auto;
+    }
+    
+    .site-card {
+      background: var(--surface-2);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    
+    .site-card:hover {
+      background: var(--surface-3);
+      transform: translateX(4px);
+    }
+    
+    .site-card.active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+    
+    .site-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    
+    .site-meta {
+      font-size: 0.75rem;
+      color: var(--text-2);
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    
+    .site-detail {
+      background: var(--surface);
+      border-radius: 16px;
+      padding: 24px;
+      overflow-y: auto;
+    }
+    
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 24px;
+    }
+    
+    .detail-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    
+    .detail-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-2);
+    }
+    
+    .detail-actions {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+    
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--surface-3);
+    }
+    
+    .btn-danger {
+      background: var(--danger);
+      color: #fff;
+    }
+    
+    .btn-danger:hover {
+      background: #dc2626;
+    }
+    
+    .form-section {
+      margin-bottom: 24px;
+    }
+    
+    .form-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+      display: block;
+    }
+    
+    .form-input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font-size: 0.9rem;
+      font-family: inherit;
+    }
+    
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    
+    .map-container {
+      height: 400px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      position: relative;
+    }
+    
+    .map-placeholder {
+      width: 100%;
+      height: 100%;
+      background: var(--surface-2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--text-2);
+    }
+    
+    .units-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+      gap: 8px;
+    }
+    
+    .unit-badge {
+      background: var(--surface-2);
+      padding: 8px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-2);
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+    
+    .btn-add-site {
+      width: 100%;
+      justify-content: center;
+      margin-bottom: 12px;
+    }
+    
+    /* Unit Management Styles */
+    .unit-row {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+    
+    .unit-row:hover {
+      border-color: rgba(255, 169, 77, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    
+    .unit-row-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    
+    .unit-row-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+    
+    .unit-row-title svg {
+      color: var(--accent);
+    }
+    
+    .unit-remove {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--danger);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .unit-remove:hover {
+      background: var(--danger);
+      color: #fff;
+      transform: scale(1.05);
+    }
+    
+    .unit-row-body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    
+    .unit-form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    
+    .unit-form-col {
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .unit-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--text-2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    
+    .unit-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-solid);
+      color: var(--text);
+      font-size: 0.85rem;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    
+    .unit-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    
+    .unit-map {
+      height: 200px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      margin-top: 6px;
+    }
+    
+    .unit-map-placeholder {
+      height: 100px;
+      background: var(--surface);
+      border: 1px dashed var(--line);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text-2);
+      font-size: 0.75rem;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="gosterge">
+    <header class="ust">
+      <div class="ic">
+        <div class="marka">
+          <div class="marka-logo" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          </div>
+          <div class="marka-yazi"><b>Çınarköy Sync</b><span>Site & Blok Yönetimi</span></div>
+        </div>
+        <nav class="gezinme" aria-label="Bölümler">
+          <a href="/"><span data-ikon="panel"></span><span>Panel</span></a>
+          <a href="/kayitlar.html"><span data-ikon="kayit"></span><span>Kayıtlar</span></a>
+          <a href="/plakalar.html"><span data-ikon="plaka"></span><span>Plakalar</span></a>
+          <a href="/siteler.html"><span data-ikon="tablo"></span><span>Siteler</span></a>
+          <a href="/ayar.html"><span data-ikon="ayar"></span><span>Ayarlar</span></a>
+        </nav>
+        <button class="ikon-btn tema-btn" type="button" aria-label="Temayı değiştir">
+          <span class="ay"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4M12 19.6V22M4.2 4.2l1.7 1.7M18.1 18.1l1.7 1.7M2 12h2.4M19.6 12H22M4.2 19.8l1.7-1.7M18.1 5.9l1.7-1.7"/></svg></span>
+          <span class="gunes"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="4.2"/><path d="M12 1.8v2.6M12 19.6v2.6M3.5 3.5l1.8 1.8M18.7 18.7l1.8 1.8M1.8 12h2.6M19.6 12h2.6M3.5 20.5l1.8-1.8M18.7 5.3l1.8-1.8"/></svg></span>
+        </button>
+      </div>
+    </header>
+
+    <main class="ana">
+      <div class="kabuk">
+        <div class="site-grid">
+          <div class="site-list">
+            <button class="btn btn-primary btn-add-site" id="btnAddSite">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Yeni Site/Blok Ekle
+            </button>
+            <div id="siteList">
+              <div class="iskelet" style="height:60px;margin-bottom:10px"></div>
+              <div class="iskelet" style="height:60px;margin-bottom:10px"></div>
+              <div class="iskelet" style="height:60px"></div>
+            </div>
+          </div>
+          
+          <div class="site-detail" id="siteDetail">
+            <div class="empty-state">
+              <div class="empty-icon">
+                <svg viewBox="0 0 24 24" width="80" height="80" fill="none" stroke="currentColor" stroke-width="1.5">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+              </div>
+              <h3>Site/Blok Seçin</h3>
+              <p>Soldaki listeden düzenlemek istediğiniz site veya bloğu seçin</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="assets/core.js"></script>
+  <script>
+    document.querySelectorAll("[data-ikon]").forEach(el => el.innerHTML = CK.ikon(el.dataset.ikon));
+    
+    let allSites = [];
+    let selectedSite = null;
+    
+    /**
+     * Google Maps linklerinden veya farklı koordinat formatlarından enlem-boylam çıkarır
+     * 
+     * Desteklenen formatlar:
+     * - https://maps.app.goo.gl/xxx (short link) - async expand
+     * - https://www.google.com/maps/.../@41.023,29.173,... (full link)
+     * - https://www.google.com/maps/dir/41.023,29.173/... (directions)
+     * - 41.023, 29.173 (decimal)
+     * - 41°01'24.5"N 29°10'00.2"E (DMS)
+     * - 41.023 (sadece enlem - yarım koordinat)
+     */
+    async function parseCoordinates(input) {
+      if (!input || typeof input !== 'string') return null;
+      
+      let text = input.trim();
+      
+      // 1. Google Maps short link - expand et
+      if (text.includes('maps.app.goo.gl') || text.includes('goo.gl')) {
+        try {
+          // Backend proxy ile expand et
+          const res = await fetch('/expand-url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: text })
+          });
+          const data = await res.json();
+          if (data.ok && data.expandedUrl) {
+            text = data.expandedUrl;
+            showToast('Link genişletildi, koordinatlar alınıyor...', 'success');
+          } else {
+            // Expand başarısız, kullanıcıya link'i tarayıcıda açmasını söyle
+            showToast('Link açılamadı. Linki tarayıcıda açın ve adres çubuğundan tam URL\'yi kopyalayın.', 'error');
+            return null;
+          }
+        } catch (e) {
+          showToast('Kısa link çözümlenemedi. Tam linki yapıştırın.', 'error');
+          return null;
+        }
+      }
+      
+      // 2. Google Maps URL - /@LAT,LNG formatı
+      let match = text.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+      }
+      
+      // 3. Google Maps directions - /dir/LAT,LNG/ formatı
+      match = text.match(/\/dir\/(-?\d+\.\d+),(-?\d+\.\d+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+      }
+      
+      // 4. DMS format: 41°01'24.5"N 29°10'00.2"E
+      match = text.match(/(\d+)[°\s]+(\d+)['\s]+([0-9.]+)["']?\s*([NS])\s+(\d+)[°\s]+(\d+)['\s]+([0-9.]+)["']?\s*([EW])/i);
+      if (match) {
+        let lat = parseInt(match[1]) + parseInt(match[2])/60 + parseFloat(match[3])/3600;
+        let lng = parseInt(match[5]) + parseInt(match[6])/60 + parseFloat(match[7])/3600;
+        if (match[4].toUpperCase() === 'S') lat = -lat;
+        if (match[8].toUpperCase() === 'W') lng = -lng;
+        return { lat, lng };
+      }
+      
+      // 5. Decimal degrees: 41.023, 29.173 veya 41.023,29.173
+      match = text.match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/);
+      if (match) {
+        return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
+      }
+      
+      // 6. Tek koordinat (sadece enlem veya boylam)
+      match = text.match(/^(-?\d+\.\d+)$/);
+      if (match) {
+        return { single: parseFloat(match[1]) };
+      }
+      
+      return null;
+    }
+    
+    // Toast ve confirm fonksiyonları
+    function showToast(message, type) {
+      const toast = document.createElement('div');
+      toast.style.cssText = `
+        position:fixed;bottom:24px;right:24px;padding:14px 20px;border-radius:12px;
+        font-size:0.85rem;font-weight:600;z-index:10000;box-shadow:0 8px 24px rgba(0,0,0,0.4);
+        animation:slideIn 0.3s ease-out;display:flex;align-items:center;gap:10px;
+        background:${type === 'success' ? 'var(--ok)' : 'var(--danger)'};color:#fff;
+      `;
+      const icon = type === 'success' 
+        ? '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>'
+        : '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      toast.innerHTML = icon + '<span>' + message + '</span>';
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+    
+    function showConfirm(title, message, onConfirm) {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
+      modal.innerHTML = '<div style="background:var(--surface);border-radius:16px;padding:24px;max-width:400px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5)">'+
+        '<div style="font-size:1.1rem;font-weight:700;margin-bottom:12px">' + title + '</div>'+
+        '<div style="color:var(--text-2);margin-bottom:20px">' + message + '</div>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+          '<button class="cancel" style="padding:10px 20px;border:none;border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:600">İptal</button>'+
+          '<button class="confirm" style="padding:10px 20px;border:none;border-radius:10px;background:var(--danger);color:#fff;cursor:pointer;font-weight:600">Sil</button>'+
+        '</div></div>';
+      document.body.appendChild(modal);
+      modal.querySelector('.cancel').onclick = () => modal.remove();
+      modal.querySelector('.confirm').onclick = () => { modal.remove(); onConfirm(); };
+      modal.onclick = e => { if (e.target === modal) modal.remove(); };
+    }
+    
+    // Load sites
+    async function loadSites() {
+      try {
+        const res = await CK.istek('/siteler');
+        const data = await res.json();
+        if (data.ok) {
+          allSites = data.sites || [];
+          renderSiteList();
+        } else {
+          showToast('Siteler yüklenemedi: ' + (data.error || 'Bilinmeyen hata'), 'error');
+        }
+      } catch (e) {
+        showToast('Bağlantı hatası: ' + e.message, 'error');
+      }
+    }
+    
+    function renderSiteList() {
+      const container = document.getElementById('siteList');
+      if (!allSites.length) {
+        container.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-2)"><p>Henüz site/blok eklenmemiş</p></div>';
+        return;
+      }
+      
+      container.innerHTML = allSites.map(site => `
+        <div class="site-card ${selectedSite && selectedSite.id === site.id ? 'active' : ''}" data-id="${site.id}">
+          <div class="site-name">${CK.kacis(site.name)}</div>
+          <div class="site-meta">
+            <span>${site.units ? site.units.length : 0} ünite</span>
+            <span>${site.street || 'Sokak yok'}</span>
+          </div>
+        </div>
+      `).join('');
+      
+      container.querySelectorAll('.site-card').forEach(card => {
+        card.addEventListener('click', () => selectSite(card.dataset.id));
+      });
+    }
+    
+    function selectSite(id) {
+      selectedSite = allSites.find(s => s.id === id);
+      if (!selectedSite) return;
+      renderSiteList();
+      renderSiteDetail();
+    }
+    
+    function renderSiteDetail() {
+      const container = document.getElementById('siteDetail');
+      if (!selectedSite) return;
+      
+      const units = selectedSite.units || [];
+      
+      container.innerHTML = `
+        <div class="detail-header">
+          <div>
+            <div class="detail-title">${CK.kacis(selectedSite.name)}</div>
+            <div class="detail-subtitle">${CK.kacis(selectedSite.street || 'Sokak adı girilmemiş')}</div>
+          </div>
+          <div class="detail-actions">
+            <button class="btn btn-primary" id="btnSave">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              Kaydet
+            </button>
+            <button class="btn btn-danger" id="btnDelete">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Sil
+            </button>
+          </div>
+        </div>
+        
+        <div class="form-section">
+          <label class="form-label">Site/Blok Adı</label>
+          <input type="text" class="form-input" id="inputName" value="${CK.kacis(selectedSite.name)}" placeholder="Örn: Cevahir 563-13">
+        </div>
+        
+        <div class="form-section">
+          <label class="form-label">Sokak Adı</label>
+          <input type="text" class="form-input" id="inputStreet" value="${CK.kacis(selectedSite.street || '')}" placeholder="Örn: Aleyna Sokak">
+        </div>
+        
+        <div class="form-section">
+          <label class="form-label">Ana Konum (Site Merkezi)</label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+            <input type="number" step="any" class="form-input" id="inputLat" value="${selectedSite.lat || ''}" placeholder="Enlem (41.023...)">
+            <input type="number" step="any" class="form-input" id="inputLng" value="${selectedSite.lng || ''}" placeholder="Boylam (29.202...)">
+          </div>
+          ${selectedSite.lat && selectedSite.lng 
+            ? `<div class="map-container" style="height:300px;margin-top:10px">
+                 <iframe width="100%" height="100%" frameborder="0" style="border:0" 
+                   src="https://maps.google.com/maps?q=${selectedSite.lat},${selectedSite.lng}&z=17&output=embed"></iframe>
+               </div>`
+            : '<div style="font-size:0.75rem;color:var(--text-2)">Koordinat girildiğinde harita görünecek</div>'}
+        </div>
+        
+        <div class="form-section">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <label class="form-label" style="margin:0">Daireler / Üniteler (${units.length} adet)</label>
+            <button class="btn btn-secondary" id="btnAddUnit" style="padding:8px 14px;font-size:0.8rem">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Ünite Ekle
+            </button>
+          </div>
+          <div id="unitsContainer">
+            ${units.length ? units.map((u, idx) => renderUnitRow(u, idx)).join('') : '<div style="text-align:center;padding:30px;color:var(--text-2)">Henüz ünite eklenmemiş</div>'}
+          </div>
+        </div>
+      `;
+      
+      document.getElementById('btnSave').addEventListener('click', saveSite);
+      document.getElementById('btnDelete').addEventListener('click', deleteSite);
+      document.getElementById('btnAddUnit').addEventListener('click', addUnit);
+      
+      // Ana konum koordinat inputlarına paste event ekle
+      const inputLat = document.getElementById('inputLat');
+      const inputLng = document.getElementById('inputLng');
+      
+      [inputLat, inputLng].forEach(input => {
+        input.addEventListener('paste', async (e) => {
+          e.preventDefault();
+          const pastedText = e.clipboardData.getData('text');
+          console.log('[PASTE] Yapıştırılan:', pastedText);
+          
+          const coords = await parseCoordinates(pastedText);
+          console.log('[PASTE] Parse sonucu:', coords);
+          
+          if (coords) {
+            if (coords.single !== undefined) {
+              // Tek koordinat - hangi input'a yapıştırıldıysa oraya
+              input.value = coords.single;
+              console.log('[PASTE] Tek koordinat yazıldı:', input.value);
+              showToast('Koordinat yapıştırıldı', 'success');
+            } else if (coords.lat && coords.lng) {
+              // Çift koordinat - her ikisine de
+              inputLat.value = coords.lat;
+              inputLng.value = coords.lng;
+              console.log('[PASTE] Koordinatlar inputa yazıldı - lat:', inputLat.value, 'lng:', inputLng.value);
+              
+              // CRITICAL: selectedSite objesini güncelle
+              selectedSite.lat = coords.lat;
+              selectedSite.lng = coords.lng;
+              console.log('[PASTE] selectedSite güncellendi:', selectedSite.lat, selectedSite.lng);
+              
+              showToast('Koordinatlar yapıştırıldı', 'success');
+              
+              // Haritayı göster - ama sadece harita container'ını güncelle, tüm formu değil!
+              const mapContainer = document.querySelector('.map-container');
+              if (mapContainer) {
+                mapContainer.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0" 
+                  src="https://maps.google.com/maps?q=${coords.lat},${coords.lng}&z=17&output=embed"></iframe>`;
+              } else {
+                // Map container yok, ekle
+                const mapSection = inputLng.closest('.form-section');
+                const existingHelp = mapSection.querySelector('[style*="font-size:0.75rem"]');
+                if (existingHelp) existingHelp.remove();
+                
+                const newMap = document.createElement('div');
+                newMap.className = 'map-container';
+                newMap.style.cssText = 'height:300px;margin-top:10px';
+                newMap.innerHTML = `<iframe width="100%" height="100%" frameborder="0" style="border:0" 
+                  src="https://maps.google.com/maps?q=${coords.lat},${coords.lng}&z=17&output=embed"></iframe>`;
+                mapSection.appendChild(newMap);
+              }
+            }
+          } else {
+            // Parse edilemedi, normal yapıştırmaya izin ver
+            console.log('[PASTE] Parse başarısız, direkt yapıştırılıyor');
+            input.value = pastedText;
+          }
+        });
+      });
+      
+      document.querySelectorAll('.unit-remove').forEach(btn => {
+        btn.addEventListener('click', () => removeUnit(parseInt(btn.dataset.idx)));
+      });
+      
+      // Ünite koordinat inputlarına paste event ekle
+      document.querySelectorAll('.unit-input[data-field="lat"], .unit-input[data-field="lng"]').forEach(input => {
+        input.addEventListener('paste', async (e) => {
+          e.preventDefault();
+          const pastedText = e.clipboardData.getData('text');
+          const coords = await parseCoordinates(pastedText);
+          const idx = parseInt(input.dataset.idx);
+          
+          if (coords) {
+            if (coords.single !== undefined) {
+              input.value = coords.single;
+              showToast('Koordinat yapıştırıldı', 'success');
+            } else if (coords.lat && coords.lng) {
+              // Aynı ünitenin lat ve lng inputlarını bul
+              const row = document.querySelector(`.unit-row[data-idx="${idx}"]`);
+              const latInput = row.querySelector('[data-field="lat"]');
+              const lngInput = row.querySelector('[data-field="lng"]');
+              latInput.value = coords.lat;
+              lngInput.value = coords.lng;
+              
+              // CRITICAL: selectedSite.units içindeki bu ünitenin koordinatlarını güncelle
+              if (selectedSite.units && selectedSite.units[idx]) {
+                selectedSite.units[idx].lat = coords.lat;
+                selectedSite.units[idx].lng = coords.lng;
+                selectedSite.units[idx].qr = `https://maps.google.com/?q=${coords.lat},${coords.lng}`;
+              }
+              
+              showToast('Koordinatlar yapıştırıldı', 'success');
+            }
+          } else {
+            input.value = pastedText;
+          }
+        });
+      });
+    }
+    
+    function renderUnitRow(unit, idx) {
+      const hasCoords = unit.lat && unit.lng;
+      return `
+        <div class="unit-row" data-idx="${idx}">
+          <div class="unit-row-header">
+            <div class="unit-row-title">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <span>${CK.kacis(unit.c || 'Yeni Ünite')}</span>
+            </div>
+            <button class="unit-remove" data-idx="${idx}">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="unit-row-body">
+            <div class="unit-form-row">
+              <div class="unit-form-col">
+                <label class="unit-label">Ünite Kodu</label>
+                <input type="text" class="unit-input" data-field="c" data-idx="${idx}" value="${CK.kacis(unit.c || '')}" placeholder="A1, B2...">
+              </div>
+              <div class="unit-form-col">
+                <label class="unit-label">Not / Giriş</label>
+                <input type="text" class="unit-input" data-field="entry" data-idx="${idx}" value="${CK.kacis(unit.entry || '')}" placeholder="Arka giriş...">
+              </div>
+            </div>
+            <div class="unit-form-row">
+              <div class="unit-form-col">
+                <label class="unit-label">Enlem</label>
+                <input type="number" step="any" class="unit-input" data-field="lat" data-idx="${idx}" value="${unit.lat || ''}" placeholder="41.023...">
+              </div>
+              <div class="unit-form-col">
+                <label class="unit-label">Boylam</label>
+                <input type="number" step="any" class="unit-input" data-field="lng" data-idx="${idx}" value="${unit.lng || ''}" placeholder="29.202...">
+              </div>
+            </div>
+            ${hasCoords ? `
+              <div class="unit-map">
+                <iframe width="100%" height="100%" frameborder="0" style="border:0" 
+                  src="https://maps.google.com/maps?q=${unit.lat},${unit.lng}&z=18&output=embed"></iframe>
+              </div>
+            ` : '<div class="unit-map-placeholder">Koordinat girildiğinde harita görünecek</div>'}
+          </div>
+        </div>
+      `;
+    }
+    
+    function addUnit() {
+      if (!selectedSite) return;
+      if (!selectedSite.units) selectedSite.units = [];
+      selectedSite.units.push({ c: '', entry: '', lat: null, lng: null, qr: '' });
+      renderSiteDetail();
+      showToast('Yeni ünite eklendi', 'success');
+    }
+    
+    function removeUnit(idx) {
+      if (!selectedSite || !selectedSite.units) return;
+      const unit = selectedSite.units[idx];
+      showConfirm(
+        'Üniteyi Sil',
+        `<strong>${CK.kacis(unit.c || 'Bu ünite')}</strong> silinecek. Emin misiniz?`,
+        () => {
+          selectedSite.units.splice(idx, 1);
+          renderSiteDetail();
+          showToast('Ünite silindi', 'success');
+        }
+      );
+    }
+    
+    async function saveSite() {
+      const name = document.getElementById('inputName').value.trim();
+      const street = document.getElementById('inputStreet').value.trim();
+      const lat = parseFloat(document.getElementById('inputLat').value) || null;
+      const lng = parseFloat(document.getElementById('inputLng').value) || null;
+      
+      if (!name) {
+        showToast('Site adı gerekli', 'error');
+        return;
+      }
+      
+      // Collect all unit data from inputs
+      const units = [];
+      document.querySelectorAll('.unit-row').forEach(row => {
+        const idx = parseInt(row.dataset.idx);
+        const cInput = row.querySelector('[data-field="c"]');
+        const entryInput = row.querySelector('[data-field="entry"]');
+        const latInput = row.querySelector('[data-field="lat"]');
+        const lngInput = row.querySelector('[data-field="lng"]');
+        
+        const c = cInput ? cInput.value.trim() : '';
+        if (!c) return; // Skip empty units
+        
+        const unitLat = latInput && latInput.value ? parseFloat(latInput.value) : null;
+        const unitLng = lngInput && lngInput.value ? parseFloat(lngInput.value) : null;
+        
+        const unit = {
+          c,
+          entry: entryInput ? entryInput.value.trim() : '',
+          lat: unitLat,
+          lng: unitLng,
+          qr: (unitLat && unitLng) ? `https://maps.google.com/?q=${unitLat},${unitLng}` : ''
+        };
+        
+        units.push(unit);
+      });
+      
+      const updated = {
+        id: selectedSite.id,
+        name,
+        street,
+        lat,
+        lng,
+        units,
+        box: selectedSite.box || null,
+        updatedAt: Date.now()
+      };
+      
+      try {
+        const res = await CK.istek('/site/' + selectedSite.id, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updated)
+        });
+        const data = await res.json();
+        
+        if (data.ok) {
+          showToast('Site güncellendi', 'success');
+          await loadSites();
+          selectSite(selectedSite.id);
+        } else {
+          showToast('Hata: ' + (data.error || 'Bilinmeyen hata'), 'error');
+        }
+      } catch (e) {
+        showToast('Bağlantı hatası: ' + e.message, 'error');
+      }
+    }
+    
+    async function deleteSite() {
+      showConfirm(
+        'Siteyi Sil',
+        'Bu site/bloğu silmek istediğinize emin misiniz?<div style="background:var(--surface-2);padding:8px;border-radius:8px;margin:8px 0;font-weight:700">' + CK.kacis(selectedSite.name) + '</div><div style="color:var(--danger);font-size:0.8rem">⚠️ Bu işlem geri alınamaz!</div>',
+        async () => {
+          try {
+            const res = await CK.istek('/site/' + selectedSite.id, { method: 'DELETE' });
+            const data = await res.json();
+            
+            if (data.ok) {
+              showToast('Site silindi', 'success');
+              selectedSite = null;
+              document.getElementById('siteDetail').innerHTML = '<div class="empty-state"><h3>Site silindi</h3><p>Soldaki listeden başka bir site seçin</p></div>';
+              await loadSites();
+            } else {
+              showToast('Hata: ' + (data.error || 'Bilinmeyen hata'), 'error');
+            }
+          } catch (e) {
+            showToast('Bağlantı hatası: ' + e.message, 'error');
+          }
+        }
+      );
+    }
+    
+    document.getElementById('btnAddSite').addEventListener('click', () => {
+      const modal = document.createElement('div');
+      modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(4px);z-index:9999;display:flex;align-items:center;justify-content:center';
+      modal.innerHTML = '<div style="background:var(--surface);border-radius:16px;padding:24px;max-width:500px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.5)">'+
+        '<div style="font-size:1.2rem;font-weight:700;margin-bottom:16px">Yeni Site/Blok Ekle</div>'+
+        '<div style="margin-bottom:16px"><label style="display:block;font-size:0.8rem;font-weight:700;color:var(--text-2);margin-bottom:8px">SITE ADI</label>'+
+        '<input type="text" id="newSiteName" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-solid);color:var(--text)" placeholder="Örn: Cevahir 563-13"></div>'+
+        '<div style="margin-bottom:16px"><label style="display:block;font-size:0.8rem;font-weight:700;color:var(--text-2);margin-bottom:8px">SOKAK ADI</label>'+
+        '<input type="text" id="newSiteStreet" style="width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-solid);color:var(--text)" placeholder="Örn: Aleyna Sokak"></div>'+
+        '<div style="display:flex;gap:10px;justify-content:flex-end">'+
+          '<button class="cancel" style="padding:10px 20px;border:none;border-radius:10px;background:var(--surface-2);color:var(--text);cursor:pointer;font-weight:600">İptal</button>'+
+          '<button class="add" style="padding:10px 20px;border:none;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600">Ekle</button>'+
+        '</div></div>';
+      document.body.appendChild(modal);
+      modal.querySelector('.cancel').onclick = () => modal.remove();
+      modal.querySelector('.add').onclick = async () => {
+        const name = document.getElementById('newSiteName').value.trim();
+        const street = document.getElementById('newSiteStreet').value.trim();
+        if (!name) { showToast('Site adı gerekli', 'error'); return; }
+        
+        const newSite = {
+          id: 'site-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9),
+          name,
+          street,
+          lat: null,
+          lng: null,
+          units: [],
+          updatedAt: Date.now()
+        };
+        
+        try {
+          const res = await CK.istek('/site', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newSite)
+          });
+          const data = await res.json();
+          
+          if (data.ok) {
+            showToast('Site eklendi', 'success');
+            modal.remove();
+            await loadSites();
+            selectSite(newSite.id);
+          } else {
+            showToast('Hata: ' + (data.error || 'Bilinmeyen hata'), 'error');
+          }
+        } catch (e) {
+          showToast('Bağlantı hatası: ' + e.message, 'error');
+        }
+      };
+    });
+    
+    loadSites();
+  </script>
+</body>
+</html>
