@@ -485,6 +485,9 @@
 
   <script src="assets/core.js"></script>
   <script>
+    // Render navigation icons
+    document.querySelectorAll("[data-ikon]").forEach(el => el.innerHTML = CK.ikon(el.dataset.ikon));
+    
     let allPlates = [];
     let editingId = null;
     let originalRowData = null;

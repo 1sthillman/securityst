@@ -7,20 +7,20 @@
   <link rel="stylesheet" href="assets/theme.css" />
   <style>
     .blacklist-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
-    .blacklist-table { background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
-    .table-header { display: grid; grid-template-columns: 140px 1fr 160px 160px 100px; gap: 12px; padding: 14px 16px; background: var(--surface-2); font-weight: 700; font-size: 0.8rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
-    .table-row { display: grid; grid-template-columns: 140px 1fr 160px 160px 100px; gap: 12px; padding: 14px 16px; border-top: 1px solid var(--line); align-items: center; transition: background 0.2s; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 14px; }
+    .blacklist-table { background: var(--surface); border-radius: 10px; overflow: hidden; border: 1px solid var(--line); }
+    .table-header { display: grid; grid-template-columns: 130px 1fr 150px 150px 90px; gap: 10px; padding: 12px 14px; background: var(--surface-2); font-weight: 700; font-size: 0.75rem; color: var(--text-2); text-transform: uppercase; letter-spacing: 0.5px; }
+    .table-row { display: grid; grid-template-columns: 130px 1fr 150px 150px 90px; gap: 10px; padding: 12px 14px; border-top: 1px solid var(--line); align-items: center; transition: background 0.2s; }
     .table-row:hover { background: var(--surface-2); }
-    .plate { font-weight: 700; font-size: 1rem; color: var(--danger); font-family: monospace; }
-    .reason { color: var(--text-2); font-size: 0.85rem; }
-    .added-by { font-size: 0.8rem; color: var(--text-2); }
-    .date { font-size: 0.8rem; color: var(--text-2); }
-    .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .plate { font-weight: 700; font-size: 0.95rem; color: var(--danger); font-family: monospace; }
+    .reason { color: var(--text-2); font-size: 0.8rem; }
+    .added-by { font-size: 0.75rem; color: var(--text-2); }
+    .date { font-size: 0.75rem; color: var(--text-2); }
+    .btn { padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 0.8rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px; }
     .btn-primary { background: var(--ok); color: #fff; }
-    .btn-danger { background: var(--danger); color: #fff; padding: 6px 12px; font-size: 0.8rem; }
+    .btn-danger { background: var(--danger); color: #fff; padding: 5px 10px; font-size: 0.75rem; }
     .btn:hover { transform: translateY(-1px); opacity: 0.9; }
-    .empty { text-align: center; padding: 40px 20px; color: var(--text-2); }
+    .empty { text-align: center; padding: 30px 20px; color: var(--text-2); font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -37,8 +37,8 @@
   <div class="blacklist-container">
     <div class="header">
       <div>
-        <h1 style="margin:0;font-size:1.6rem;font-weight:700">Blacklist Yönetimi</h1>
-        <p style="color:var(--text-2);margin:6px 0 0 0;font-size:0.9rem">Yasaklı ve şüpheli plakalar</p>
+        <h1 style="margin:0;font-size:1.4rem;font-weight:700">Blacklist Yönetimi</h1>
+        <p style="color:var(--text-2);margin:5px 0 0 0;font-size:0.85rem">Yasaklı ve şüpheli plakalar</p>
       </div>
       <button class="btn btn-primary" id="btnAdd">Plaka Ekle</button>
     </div>

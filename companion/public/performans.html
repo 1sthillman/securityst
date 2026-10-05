@@ -8,21 +8,21 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
   <style>
     .perf-container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .stat-card { background: var(--surface); border-radius: 12px; padding: 20px; border: 1px solid var(--line); }
-    .stat-value { font-size: 2rem; font-weight: 700; margin: 8px 0 4px 0; color: var(--accent); }
-    .stat-label { color: var(--text-2); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
-    .guard-list { background: var(--surface); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid var(--line); }
-    .guard-item { display: flex; justify-content: space-between; align-items: center; padding: 14px; border-radius: 8px; margin-bottom: 10px; background: var(--surface-2); flex-wrap: wrap; gap: 12px; }
-    .guard-name { font-weight: 700; font-size: 1rem; min-width: 150px; }
-    .guard-stats { display: flex; gap: 16px; font-size: 0.85rem; color: var(--text-2); flex-wrap: wrap; }
-    .chart-container { background: var(--surface); border-radius: 12px; padding: 20px; margin-bottom: 24px; border: 1px solid var(--line); }
-    .chart-container h3 { margin: 0 0 16px 0; font-size: 1rem; font-weight: 700; }
-    .filter-bar { background: var(--surface); border-radius: 12px; padding: 16px; margin-bottom: 24px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); }
-    .filter-bar select { padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--text); font-size: 0.85rem; }
-    .btn { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 0.85rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .stat-card { background: var(--surface); border-radius: 10px; padding: 16px; border: 1px solid var(--line); }
+    .stat-value { font-size: 1.6rem; font-weight: 700; margin: 6px 0 4px 0; color: var(--accent); }
+    .stat-label { color: var(--text-2); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    .guard-list { background: var(--surface); border-radius: 10px; padding: 16px; margin-bottom: 20px; border: 1px solid var(--line); }
+    .guard-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-radius: 8px; margin-bottom: 8px; background: var(--surface-2); flex-wrap: wrap; gap: 10px; }
+    .guard-name { font-weight: 700; font-size: 0.9rem; min-width: 140px; }
+    .guard-stats { display: flex; gap: 14px; font-size: 0.8rem; color: var(--text-2); flex-wrap: wrap; }
+    .chart-container { background: var(--surface); border-radius: 10px; padding: 16px; margin-bottom: 20px; border: 1px solid var(--line); }
+    .chart-container h3 { margin: 0 0 14px 0; font-size: 0.95rem; font-weight: 700; }
+    .filter-bar { background: var(--surface); border-radius: 10px; padding: 14px; margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border: 1px solid var(--line); }
+    .filter-bar select { padding: 7px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-2); color: var(--text); font-size: 0.8rem; }
+    .btn { padding: 7px 14px; border: none; border-radius: 7px; cursor: pointer; font-weight: 600; font-size: 0.8rem; transition: all 0.2s; display: inline-flex; align-items: center; gap: 5px; }
     .btn:hover { transform: translateY(-1px); opacity: 0.9; }
-    .empty-state { text-align: center; padding: 40px 20px; color: var(--text-2); }
+    .empty-state { text-align: center; padding: 30px 20px; color: var(--text-2); font-size: 0.85rem; }
   </style>
 </head>
 <body>
@@ -37,13 +37,13 @@
   </nav>
 
   <div class="perf-container">
-    <div style="margin-bottom:24px">
-      <h1 style="margin:0 0 6px 0;font-size:1.6rem;font-weight:700">Performans İstatistikleri</h1>
-      <p style="color:var(--text-2);margin:0;font-size:0.9rem">Görevli performansı, kayıt trendleri ve detaylı analizler</p>
+    <div style="margin-bottom:20px">
+      <h1 style="margin:0 0 5px 0;font-size:1.4rem;font-weight:700">Performans İstatistikleri</h1>
+      <p style="color:var(--text-2);margin:0;font-size:0.85rem">Görevli performansı, kayıt trendleri ve detaylı analizler</p>
     </div>
 
     <div class="filter-bar">
-      <label style="font-weight:600;color:var(--text);font-size:0.85rem">Dönem:</label>
+      <label style="font-weight:600;color:var(--text);font-size:0.8rem">Dönem:</label>
       <select id="periodFilter">
         <option value="today">Bugün</option>
         <option value="week" selected>Son 7 Gün</option>
@@ -64,8 +64,8 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">En Aktif Görevli</div>
-        <div class="stat-value" style="font-size:1.3rem" id="topGuard">-</div>
-        <div class="stat-label" id="topGuardCount"></div>
+        <div class="stat-value" style="font-size:1.1rem" id="topGuard">-</div>
+        <div class="stat-label" style="font-size:0.75rem" id="topGuardCount"></div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Günlük Ortalama</div>
@@ -75,17 +75,17 @@
 
     <div class="chart-container">
       <h3>Günlük Kayıt Trendi</h3>
-      <canvas id="trendChart" height="60"></canvas>
+      <canvas id="trendChart" height="50"></canvas>
     </div>
 
     <div class="guard-list">
-      <h3 style="margin:0 0 16px 0;font-size:1rem;font-weight:700">Görevli Detayları</h3>
+      <h3 style="margin:0 0 12px 0;font-size:0.95rem;font-weight:700">Görevli Detayları</h3>
       <div id="guardList"></div>
     </div>
 
     <div class="chart-container">
       <h3>Kayıt Türü Dağılımı</h3>
-      <canvas id="typeChart" height="60"></canvas>
+      <canvas id="typeChart" height="50"></canvas>
     </div>
   </div>
 
